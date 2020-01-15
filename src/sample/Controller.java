@@ -9,12 +9,14 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.Window;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.InlineCssTextArea;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -79,9 +81,7 @@ public class Controller {
                     if (item.isLeaf()) {
                         try {
                             String s = new String(Files.readAllBytes(Paths.get(path + getFullPath(item))));
-                            textArea.deleteText(0, textArea.getLength());
-                            textArea.appendText(s);
-                            textArea.moveTo(0);
+                            textArea.replaceText(s);
                             highlightAllMatches(s);
                         } catch (IOException e) {
                             e.printStackTrace();
@@ -111,6 +111,7 @@ public class Controller {
             count++;
             if (count == 1) {
                 textArea.selectRange(matcher.start(), matcher.start() + textField.getText().length());
+                textArea.requestFollowCaret();
             }
             textArea.setStyle(matcher.start(), matcher.end(), "-rtfx-background-color: lightblue;");
         }
@@ -170,23 +171,33 @@ public class Controller {
 
     @FXML
     protected void handleSubmitButtonAction() {
+        Window owner = textField.getScene().getWindow();
         String text = textField.getText();
         String userPath = folderField.getText();
         String userExtension = extensionField.getText();
-        if (text.isEmpty()) return;
-        pattern = Pattern.compile(text);
+        treeView.setRoot(null);
         if (userPath != null && !userPath.trim().isEmpty()) {
             path = userPath;
         } else {
+            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выберите папку!");
             return;
         }
+        if (text.isEmpty()) {
+            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выберите искомое слово!");
+            return;
+        }
+        pattern = Pattern.compile(text);
         if (!userExtension.isEmpty()) {
             extension = userExtension;
         }
+        //Path p = Paths.get(path);
+
         try (Stream<Path> walk = Files.walk(Paths.get(path))) {
             String finalPath = path;
 
-            // Find all files which end with $extension and put them into list
+            // Find all files which end with extension and put them into list
             List<String> result = walk.map(Path::toString)
                     .filter(f -> f.endsWith("." + extension))
                     .map(s -> s.substring(finalPath.length() + 1))
@@ -228,6 +239,14 @@ public class Controller {
             textArea.deleteText(0, textArea.getLength());
             root.expandedProperty().addListener(f -> setAllGraphics(root));
             treeView.setRoot(root);
+            if (root.isLeaf()) {
+                treeView.setRoot(null);
+                AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                        "Искомого текста не найдено в файлах указанной директории.");
+            }
+        } catch (NoSuchFileException e) {
+            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выбранной папки не существует!");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -237,10 +256,7 @@ public class Controller {
     protected void chooseFolderButtonAction() {
         DirectoryChooser directoryChooser = new DirectoryChooser();
         File selectedDirectory = directoryChooser.showDialog(folderField.getScene().getWindow());
-
-        if(selectedDirectory == null){
-            //No Directory selected
-        }else{
+        if (selectedDirectory != null) {
             folderField.setText(selectedDirectory.getAbsolutePath());
         }
     }

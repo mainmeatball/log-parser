@@ -65,7 +65,7 @@
                    maxWidth="100"
                    GridPane.hgrow="NEVER"
                    fx:id="extensionField"
-                   promptText="*.log">
+                   promptText="log">
             <HBox.margin>
                 <Insets right="10"/>
             </HBox.margin>
