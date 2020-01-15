@@ -1,5 +1,7 @@
 package sample;
 
+import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
@@ -103,17 +105,31 @@ public class Controller {
         patternText = textField.getText();
         patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
         pattern = Pattern.compile(patternText);
-        Matcher matcher = pattern.matcher(s);
-        int count = 0;
-        while (matcher.find()) {
-            startMatches.add(matcher.start());
-            endMatches.add(matcher.end());
-            count++;
-            if (count == 1) {
-                textArea.selectRange(matcher.start(), matcher.start() + textField.getText().length());
-                textArea.requestFollowCaret();
+        Task<Void> task = new Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                Matcher matcher = pattern.matcher(s);
+                int count = 0;
+                while (matcher.find()) {
+                    startMatches.add(matcher.start());
+                    endMatches.add(matcher.end());
+//                    count++;
+//                    if (count == 1) {
+//                        Platform.runLater(() -> {
+//                            textArea.selectRange(matcher.start(), matcher.start() + textField.getText().length());
+//                            textArea.requestFollowCaret();
+//                        });
+//                    }
+//                    Platform.runLater(() -> {
+//                        textArea.setStyle(matcher.start(), matcher.end(), "-rtfx-background-color: lightblue;");
+//                    });
+                }
+                return null;
             }
-            textArea.setStyle(matcher.start(), matcher.end(), "-rtfx-background-color: lightblue;");
+        };
+        new Thread(task).start();
+        for (int i = 0; i < startMatches.size(); i++) {
+            textArea.setStyle(startMatches.get(i), endMatches.get(i), "-rtfx-background-color: lightblue;");
         }
     }
 
@@ -176,80 +192,85 @@ public class Controller {
         String userPath = folderField.getText();
         String userExtension = extensionField.getText();
         treeView.setRoot(null);
-        if (userPath != null && !userPath.trim().isEmpty()) {
-            path = userPath;
-        } else {
-            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выберите папку!");
-            return;
-        }
-        if (text.isEmpty()) {
-            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выберите искомое слово!");
-            return;
-        }
-        pattern = Pattern.compile(text);
-        if (!userExtension.isEmpty()) {
-            extension = userExtension;
-        }
-        //Path p = Paths.get(path);
+        Task<Void> task = new Task<Void>() {
+            @Override
+            protected Void call() {
+                Platform.runLater(() -> textArea.deleteText(0, textArea.getLength()));
+                if (userPath != null && !userPath.trim().isEmpty()) {
+                    path = userPath;
+                } else {
+                    AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                            "Выберите папку!");
+                    return null;
+                }
+                if (text.isEmpty()) {
+                    AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                            "Выберите искомое слово!");
+                    return null;
+                }
+                pattern = Pattern.compile(text);
+                if (!userExtension.isEmpty()) {
+                    extension = userExtension;
+                }
+                try (Stream<Path> walk = Files.walk(Paths.get(path))) {
+                    String finalPath = path;
 
-        try (Stream<Path> walk = Files.walk(Paths.get(path))) {
-            String finalPath = path;
+                    // Find all files which end with extension and put them into list
+                    List<String> result = walk.map(Path::toString)
+                            .filter(f -> f.endsWith("." + extension))
+                            .map(s -> s.substring(finalPath.length() + 1))
+                            .collect(Collectors.toList());
 
-            // Find all files which end with extension and put them into list
-            List<String> result = walk.map(Path::toString)
-                    .filter(f -> f.endsWith("." + extension))
-                    .map(s -> s.substring(finalPath.length() + 1))
-                    .collect(Collectors.toList());
+                    if (result.isEmpty()) {
+                        treeView.setRoot(null);
+                        return null;
+                    }
 
-            if (result.isEmpty()) {
-                treeView.setRoot(null);
-                return;
-            }
+                    // Add tree root folder
+                    String[] rootFolder = path.split("/");
+                    TreeItem<String> root = new TreeItem<>(rootFolder[rootFolder.length - 1]);
+                    root.setExpanded(true);
 
-            // Add tree root folder
-            String[] rootFolder = path.split("/");
-            TreeItem<String> root = new TreeItem<>(rootFolder[rootFolder.length - 1]);
-            root.setExpanded(true);
+                    // Loop through list files
+                    for (String p : result) {
+                        byte[] fileContent = Files.readAllBytes(Paths.get(path + "/" + p));
+                        if (KMPMatch.indexOf(fileContent, text.getBytes()) != -1) {
 
-            // Loop through list files
-            for (String p : result) {
-                byte[] fileContent = Files.readAllBytes(Paths.get(path + "/" + p));
-                if (KMPMatch.indexOf(fileContent, text.getBytes()) != -1) {
-
-                    // split path by slashes and add as children
-                    String[] s = p.split("/");
-                    TreeItem<String> tempRoot = root;
-                    for (String f : s) {
-                        TreeItem<String> findNode = getTreeViewItem(tempRoot, f);
-                        if (findNode != null) {
-                            tempRoot = findNode;
-                        } else {
-                            TreeItem<String> node = new TreeItem<>(f);
-                            node.expandedProperty().addListener(a -> setAllGraphics(node));
-                            tempRoot.getChildren().add(node);
-                            tempRoot.setExpanded(true);
-                            tempRoot = node;
+                            // split path by slashes and add as children
+                            String[] s = p.split("/");
+                            TreeItem<String> tempRoot = root;
+                            for (String f : s) {
+                                TreeItem<String> findNode = getTreeViewItem(tempRoot, f);
+                                if (findNode != null) {
+                                    tempRoot = findNode;
+                                } else {
+                                    TreeItem<String> node = new TreeItem<>(f);
+                                    node.expandedProperty().addListener(a -> setAllGraphics(node));
+                                    tempRoot.getChildren().add(node);
+                                    tempRoot.setExpanded(true);
+                                    tempRoot = node;
+                                }
+                            }
                         }
                     }
+                    setAllGraphics(root);
+                    root.expandedProperty().addListener(f -> setAllGraphics(root));
+                    Platform.runLater(() -> treeView.setRoot(root));
+                    if (root.isLeaf()) {
+                        treeView.setRoot(null);
+                        AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                                "Искомого текста не найдено в файлах указанной директории.");
+                    }
+                } catch (NoSuchFileException e) {
+                    AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                            "Выбранной папки не существует!");
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
+                return null;
             }
-            setAllGraphics(root);
-            textArea.deleteText(0, textArea.getLength());
-            root.expandedProperty().addListener(f -> setAllGraphics(root));
-            treeView.setRoot(root);
-            if (root.isLeaf()) {
-                treeView.setRoot(null);
-                AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                        "Искомого текста не найдено в файлах указанной директории.");
-            }
-        } catch (NoSuchFileException e) {
-            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выбранной папки не существует!");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        };
+        new Thread(task).start();
     }
 
     @FXML
