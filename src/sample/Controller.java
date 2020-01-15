@@ -13,8 +13,8 @@ import javafx.scene.layout.Priority;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Window;
 import org.fxmisc.flowless.VirtualizedScrollPane;
-import org.fxmisc.richtext.InlineCssTextArea;
 import org.fxmisc.richtext.StyleClassedTextArea;
+import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 
 import java.io.File;
@@ -23,10 +23,10 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -48,8 +48,6 @@ public class Controller {
     @FXML
     private TreeView<String> treeView;
 
-//    InlineCssTextArea textArea = new InlineCssTextArea();
-//    VirtualizedScrollPane<InlineCssTextArea> vsPane = new VirtualizedScrollPane<>(textArea);
     StyleClassedTextArea textArea = new StyleClassedTextArea();
     VirtualizedScrollPane<StyleClassedTextArea> vsPane = new VirtualizedScrollPane<>(textArea);
 
@@ -67,6 +65,8 @@ public class Controller {
     Image fileImage = new Image(
             getClass().getResourceAsStream("/resources/file.png"));
 
+    private ExecutorService executor;
+
     @FXML
     public void initialize() {
         folderField.setText("/Users/Meatball/Desktop/test");
@@ -79,7 +79,7 @@ public class Controller {
         textArea.setPadding(new Insets(6));
         textArea.getStyleClass().add("text-area");
         gridPane.add(vsPane, 1, 2);
-
+        executor = Executors.newSingleThreadExecutor();
         //set event when selecting file with double click
         treeView.setOnMouseClicked(mouseEvent -> {
             if(mouseEvent.getClickCount() == 2)
@@ -90,8 +90,12 @@ public class Controller {
                         try {
                             String s = new String(Files.readAllBytes(Paths.get(path + getFullPath(item))));
                             textArea.replaceText(s);
-                            highlightAllMatches(s);
-                        } catch (IOException e) {
+                            patternText = textField.getText();
+                            patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
+                            pattern = Pattern.compile(patternText);
+                            applyHighlighting(computeHighlightingAsync().get());
+
+                        } catch (IOException | InterruptedException | ExecutionException e) {
                             e.printStackTrace();
                         }
                     }
@@ -100,36 +104,53 @@ public class Controller {
         });
     }
 
-    volatile List<Integer> startMatches = new ArrayList<>();
-    volatile List<Integer> endMatches = new ArrayList<>();
+    List<Integer> startMatches = new ArrayList<>();
+    List<Integer> endMatches = new ArrayList<>();
+
+    private void applyHighlighting(StyleSpans<Collection<String>> highlighting) {
+        textArea.setStyleSpans(0, highlighting);
+    }
 
     //find and highlight all matches
-    public void highlightAllMatches(String s) {
-        startMatches.clear();
-        endMatches.clear();
-        textArea.setStyleClass(0, textArea.getLength(), "white");
-        patternText = textField.getText();
-        patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
-        pattern = Pattern.compile(patternText);
-        Matcher matcher = pattern.matcher(s);
+    public Task<StyleSpans<Collection<String>>> computeHighlightingAsync() {
+        String s = textArea.getText();
+        Task<StyleSpans<Collection<String>>> task = new Task<StyleSpans<Collection<String>>>() {
+            @Override
+            protected StyleSpans<Collection<String>> call() {
+                return computeHighlighting(s);
+            }
+        };
+        executor.execute(task);
+        return task;
+    }
+
+    private StyleSpans<Collection<String>> computeHighlighting(String text) {
+        Matcher matcher = pattern.matcher(text);
         int count = 0;
         int lastKwEnd = 0;
+        startMatches.clear();
+        endMatches.clear();
         StyleSpansBuilder<Collection<String>> spansBuilder
                 = new StyleSpansBuilder<>();
         while (matcher.find()) {
-            startMatches.add(matcher.start());
-            endMatches.add(matcher.end());
-            spansBuilder.add(Collections.singleton("white"), matcher.start() - lastKwEnd);
-            spansBuilder.add(Collections.singleton("lightblue"), matcher.end() - matcher.start());
-            lastKwEnd = matcher.end();
+            int ms = matcher.start();
+            int me = matcher.end();
+            startMatches.add(ms);
+            endMatches.add(me);
+            spansBuilder.add(Collections.singleton("white"), ms - lastKwEnd);
+            spansBuilder.add(Collections.singleton("lightblue"), me - ms);
+            lastKwEnd = me;
             count++;
             if (count == 1) {
-                textArea.selectRange(matcher.start(), matcher.start() + textField.getText().length());
-                textArea.requestFollowCaret();
+                Platform.runLater(() -> {
+                    textArea.selectRange(ms, ms + textField.getText().length());
+                    textArea.requestFollowCaret();
+                });
+
             }
         }
-        spansBuilder.add(Collections.emptyList(), s.length() - lastKwEnd);
-        textArea.setStyleSpans(0, spansBuilder.create());
+        spansBuilder.add(Collections.emptyList(), text.length() - lastKwEnd);
+        return spansBuilder.create();
     }
 
     @FXML
@@ -138,8 +159,12 @@ public class Controller {
         patternText = textField.getText();
         patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
         if (!pattern.toString().equals(patternText)) {
-            textArea.setStyleClass(0, textArea.getLength(), "white");
-            highlightAllMatches(textArea.getText());
+            pattern = Pattern.compile(patternText);
+            try {
+                applyHighlighting(computeHighlightingAsync().get());
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
             return;
         }
         for (Integer i : startMatches) {
@@ -163,7 +188,12 @@ public class Controller {
         patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
         if (!pattern.toString().equals(patternText)) {
             textArea.setStyleClass(0, textArea.getLength(), "white");
-            highlightAllMatches(textArea.getText());
+            try {
+                applyHighlighting(computeHighlightingAsync().get());
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+            return;
         }
         for (int i = endMatches.size() - 1; i >= 0; i--) {
             if (endMatches.get(i) <= textArea.getCaretPosition() && textArea.getSelection().getStart() != endMatches.get(i) - textField.getText().length()) {
@@ -269,7 +299,8 @@ public class Controller {
                 return null;
             }
         };
-        new Thread(task).start();
+        executor.execute(task);
+        //new Thread(task).start();
     }
 
     @FXML
