@@ -14,6 +14,8 @@ import javafx.stage.DirectoryChooser;
 import javafx.stage.Window;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.InlineCssTextArea;
+import org.fxmisc.richtext.StyleClassedTextArea;
+import org.fxmisc.richtext.model.StyleSpansBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,6 +24,8 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -44,8 +48,10 @@ public class Controller {
     @FXML
     private TreeView<String> treeView;
 
-    InlineCssTextArea textArea = new InlineCssTextArea();
-    VirtualizedScrollPane<InlineCssTextArea> vsPane = new VirtualizedScrollPane<>(textArea);
+//    InlineCssTextArea textArea = new InlineCssTextArea();
+//    VirtualizedScrollPane<InlineCssTextArea> vsPane = new VirtualizedScrollPane<>(textArea);
+    StyleClassedTextArea textArea = new StyleClassedTextArea();
+    VirtualizedScrollPane<StyleClassedTextArea> vsPane = new VirtualizedScrollPane<>(textArea);
 
     private Pattern pattern;
     private String patternText;
@@ -94,43 +100,36 @@ public class Controller {
         });
     }
 
-    List<Integer> startMatches = new ArrayList<>();
-    List<Integer> endMatches = new ArrayList<>();
+    volatile List<Integer> startMatches = new ArrayList<>();
+    volatile List<Integer> endMatches = new ArrayList<>();
 
     //find and highlight all matches
     public void highlightAllMatches(String s) {
         startMatches.clear();
         endMatches.clear();
-        textArea.setStyle(0, textArea.getLength(), "-rtfx-background-color: white;");
+        textArea.setStyleClass(0, textArea.getLength(), "white");
         patternText = textField.getText();
         patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
         pattern = Pattern.compile(patternText);
-        Task<Void> task = new Task<Void>() {
-            @Override
-            protected Void call() throws Exception {
-                Matcher matcher = pattern.matcher(s);
-                int count = 0;
-                while (matcher.find()) {
-                    startMatches.add(matcher.start());
-                    endMatches.add(matcher.end());
-//                    count++;
-//                    if (count == 1) {
-//                        Platform.runLater(() -> {
-//                            textArea.selectRange(matcher.start(), matcher.start() + textField.getText().length());
-//                            textArea.requestFollowCaret();
-//                        });
-//                    }
-//                    Platform.runLater(() -> {
-//                        textArea.setStyle(matcher.start(), matcher.end(), "-rtfx-background-color: lightblue;");
-//                    });
-                }
-                return null;
+        Matcher matcher = pattern.matcher(s);
+        int count = 0;
+        int lastKwEnd = 0;
+        StyleSpansBuilder<Collection<String>> spansBuilder
+                = new StyleSpansBuilder<>();
+        while (matcher.find()) {
+            startMatches.add(matcher.start());
+            endMatches.add(matcher.end());
+            spansBuilder.add(Collections.singleton("white"), matcher.start() - lastKwEnd);
+            spansBuilder.add(Collections.singleton("lightblue"), matcher.end() - matcher.start());
+            lastKwEnd = matcher.end();
+            count++;
+            if (count == 1) {
+                textArea.selectRange(matcher.start(), matcher.start() + textField.getText().length());
+                textArea.requestFollowCaret();
             }
-        };
-        new Thread(task).start();
-        for (int i = 0; i < startMatches.size(); i++) {
-            textArea.setStyle(startMatches.get(i), endMatches.get(i), "-rtfx-background-color: lightblue;");
         }
+        spansBuilder.add(Collections.emptyList(), s.length() - lastKwEnd);
+        textArea.setStyleSpans(0, spansBuilder.create());
     }
 
     @FXML
@@ -139,7 +138,7 @@ public class Controller {
         patternText = textField.getText();
         patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
         if (!pattern.toString().equals(patternText)) {
-            textArea.setStyle(0, textArea.getLength(), "-rtfx-background-color: white;");
+            textArea.setStyleClass(0, textArea.getLength(), "white");
             highlightAllMatches(textArea.getText());
             return;
         }
@@ -163,7 +162,7 @@ public class Controller {
         patternText = textField.getText();
         patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
         if (!pattern.toString().equals(patternText)) {
-            textArea.setStyle(0, textArea.getLength(), "-rtfx-background-color: white;");
+            textArea.setStyleClass(0, textArea.getLength(), "white");
             highlightAllMatches(textArea.getText());
         }
         for (int i = endMatches.size() - 1; i >= 0; i--) {

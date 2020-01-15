@@ -10,3 +10,11 @@
     -fx-effect: dropshadow(three-pass-box, #039ed3, 3, 0, 0, 0);
     -fx-highlight-fill: yellow;
 }
+
+.lightblue {
+    -rtfx-background-color: lightblue;
+}
+
+.white {
+    -rtfx-background-color: white;
+}
