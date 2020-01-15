@@ -80,6 +80,17 @@ public class Controller {
         textArea.getStyleClass().add("text-area");
         gridPane.add(vsPane, 1, 2);
         executor = Executors.newSingleThreadExecutor();
+
+        textField.textProperty().addListener((observable, oldValue, newValue) -> {
+            if (textArea.getText().isEmpty()) return;
+            try {
+                pattern = Pattern.compile(newValue);
+                applyHighlighting(computeHighlightingAsync().get());
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+        });
+
         //set event when selecting file with double click
         treeView.setOnMouseClicked(mouseEvent -> {
             if(mouseEvent.getClickCount() == 2)
@@ -139,6 +150,7 @@ public class Controller {
             endMatches.add(me);
             spansBuilder.add(Collections.singleton("white"), ms - lastKwEnd);
             spansBuilder.add(Collections.singleton("lightblue"), me - ms);
+
             lastKwEnd = me;
             count++;
             if (count == 1) {
@@ -148,6 +160,11 @@ public class Controller {
                 });
 
             }
+        }
+        if (count == 0) {
+            Platform.runLater(() -> textArea.moveTo(0));
+            spansBuilder.add(Collections.singleton("white"), text.length());
+            return spansBuilder.create();
         }
         spansBuilder.add(Collections.emptyList(), text.length() - lastKwEnd);
         return spansBuilder.create();
