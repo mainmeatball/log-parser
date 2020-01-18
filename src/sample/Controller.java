@@ -2,6 +2,7 @@ package sample;
 
 import javafx.application.Platform;
 import javafx.concurrent.Task;
+import javafx.event.Event;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
@@ -14,7 +15,6 @@ import javafx.stage.DirectoryChooser;
 import javafx.stage.Window;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.StyleClassedTextArea;
-import org.fxmisc.richtext.model.StyleSpans;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -65,6 +65,11 @@ public class Controller {
 
     final private ExecutorService executor = Executors.newSingleThreadExecutor();
 
+    private enum Direction {
+        PREV,
+        NEXT
+    }
+
     @FXML
     public void initialize() {
         folderField.setText("/Users/Meatball/Desktop/test");
@@ -87,31 +92,52 @@ public class Controller {
             }
         });
 
-        //set event when selecting file with double click
-        treeView.setOnMouseClicked(mouseEvent -> {
-            if(mouseEvent.getClickCount() == 2) {
-                if (treeView.getSelectionModel().getSelectedItem() != null) {
-                    TreeItem<String> item = treeView.getSelectionModel().getSelectedItem();
-                    if (item.isLeaf()) {
-                        try {
-                            RandomAccessFile file = new RandomAccessFile(path + pathFor(item), "r");
+//        //set event when selecting file with double click
+//        treeView.setOnMouseClicked(mouseEvent -> {
+//            if(mouseEvent.getClickCount() == 2) {
+//                if (treeView.getSelectionModel().getSelectedItem() != null) {
+//                    TreeItem<String> item = treeView.getSelectionModel().getSelectedItem();
+//                    if (item.isLeaf()) {
+//                        try {
+//                            RandomAccessFile file = new RandomAccessFile(path + pathFor(item), "r");
+//
+//                            // adding text from file to textArea
+//                            patternText = textField.getText();
+//                            patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
+//                            pattern = Pattern.compile(patternText);
+//                            addFileToTextArea(file, textArea);
+//                            applyHighlighting(computeHighlightingAsync());
+//
+////                            String s = new String(Files.readAllBytes(Paths.get(path + getFullPath(item))));
+////                            textArea.replaceText(s);
+//                        } catch (Exception e) {
+//                            e.printStackTrace();
+//                        }
+//                    }
+//                }
+//            }
+//        });
+    }
 
-                            // adding text from file to textArea
-                            patternText = textField.getText();
-                            patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
-                            pattern = Pattern.compile(patternText);
-                            addFileToTextArea(file, textArea);
-                            applyHighlighting(computeHighlightingAsync());
+    @FXML
+    protected void showFileAndHighlightMatches() {
+        if (treeView.getSelectionModel().getSelectedItem() != null) {
+            TreeItem<String> item = treeView.getSelectionModel().getSelectedItem();
+            if (item.isLeaf()) {
+                try {
+                    RandomAccessFile file = new RandomAccessFile(path + pathFor(item), "r");
 
-//                            String s = new String(Files.readAllBytes(Paths.get(path + getFullPath(item))));
-//                            textArea.replaceText(s);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
+                    // adding text from file to textArea
+                    patternText = textField.getText();
+                    patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
+                    pattern = Pattern.compile(patternText);
+                    addFileToTextArea(file, textArea);
+                    applyHighlighting(computeHighlightingAsync());
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
-        });
+        }
     }
 
     private void addFileToTextArea(RandomAccessFile file, StyleClassedTextArea textArea) throws IOException {
@@ -163,11 +189,6 @@ public class Controller {
         if (!foundIn(endMatches, Direction.PREV, textArea.getCaretPosition())) {
             foundIn(endMatches, Direction.PREV, textArea.getLength());
         }
-    }
-
-    private enum Direction {
-        PREV,
-        NEXT
     }
 
     private void highlightMatchesIn(String s) {

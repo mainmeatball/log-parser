@@ -23,7 +23,7 @@ public class Highlighter implements Callable<HighlighterResult> {
     }
 
     @Override
-    public HighlighterResult call() throws Exception {
+    public HighlighterResult call() {
         return computeHighlighting(text);
     }
 

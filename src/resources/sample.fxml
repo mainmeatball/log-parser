@@ -113,7 +113,9 @@
     <TreeView fx:id="treeView"
               GridPane.columnIndex="0" GridPane.rowIndex="3" GridPane.rowSpan="2"
               GridPane.vgrow="ALWAYS"
-              GridPane.hgrow="ALWAYS">
+              GridPane.hgrow="ALWAYS"
+              onMouseClicked="#showFileAndHighlightMatches"
+    >
     </TreeView>
 
     <!--  Add text area here in the code column = 1 and row = 3  -->
