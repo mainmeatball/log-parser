@@ -11,15 +11,12 @@ import java.util.regex.Pattern;
 public class Highlighter implements Callable<HighlighterResult> {
     String text;
     Pattern pattern;
-    Collection<Integer> startMatches;
-    Collection<Integer> endMatches;
+    Collection<Pair<Integer,Integer>> matches;
 
-    public Highlighter(String text, Pattern pattern,
-                       Collection<Integer> startMatches, Collection<Integer> endMatches) {
+    public Highlighter(String text, Pattern pattern, Collection<Pair<Integer,Integer>> matches) {
         this.text = text;
         this.pattern = pattern;
-        this.startMatches = startMatches;
-        this.endMatches = endMatches;
+        this.matches = matches;
     }
 
     @Override
@@ -33,15 +30,13 @@ public class Highlighter implements Callable<HighlighterResult> {
         int lastKwEnd = 0;
         int start = 0;
         int end = 0;
-        startMatches.clear();
-        endMatches.clear();
+        matches.clear();
         StyleSpansBuilder<Collection<String>> spansBuilder
                 = new StyleSpansBuilder<>();
         while (matcher.find()) {
             int ms = matcher.start();
             int me = matcher.end();
-            startMatches.add(ms);
-            endMatches.add(me);
+            matches.add(new Pair<>(ms, me));
             spansBuilder.add(Collections.singleton("white"), ms - lastKwEnd);
             spansBuilder.add(Collections.singleton("lightblue"), me - ms);
             lastKwEnd = me;

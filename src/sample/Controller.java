@@ -126,7 +126,6 @@ public class Controller {
             if (item.isLeaf()) {
                 try {
                     RandomAccessFile file = new RandomAccessFile(path + pathFor(item), "r");
-
                     // adding text from file to textArea
                     patternText = textField.getText();
                     patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
@@ -153,8 +152,7 @@ public class Controller {
         fc.close();
     }
 
-    LinkedList<Integer> startMatches = new LinkedList<>();
-    LinkedList<Integer> endMatches = new LinkedList<>();
+    LinkedList<Pair<Integer,Integer>> matches = new LinkedList<>();
 
     private void applyHighlighting(HighlighterResult highlighterResult) {
         textArea.setStyleSpans(0, highlighterResult.getStyleSpans());
@@ -167,7 +165,7 @@ public class Controller {
 
     //find and highlight all matches
     public HighlighterResult computeHighlightingAsync() throws InterruptedException, ExecutionException {
-        Highlighter highlighter = new Highlighter(textArea.getText(), pattern, startMatches, endMatches);
+        Highlighter highlighter = new Highlighter(textArea.getText(), pattern, matches);
         Future<HighlighterResult> task = executor.submit(highlighter);
         while(!task.isDone()) {
             Thread.sleep(1);
@@ -178,24 +176,24 @@ public class Controller {
     @FXML
     protected void nextMatch() {
         highlightMatchesIn(textArea.getText());
-        if (!foundIn(endMatches, Direction.NEXT, textArea.getCaretPosition())) {
-            foundIn(endMatches, Direction.NEXT, 0);
+        if (!foundIn(Direction.NEXT, textArea.getCaretPosition())) {
+            foundIn(Direction.NEXT, 0);
         }
     }
 
     @FXML
     protected void previousMatch() {
         highlightMatchesIn(textArea.getText());
-        if (!foundIn(endMatches, Direction.PREV, textArea.getCaretPosition())) {
-            foundIn(endMatches, Direction.PREV, textArea.getLength());
+        if (!foundIn(Direction.PREV, textArea.getCaretPosition())) {
+            foundIn(Direction.PREV, textArea.getLength());
         }
     }
 
     private void highlightMatchesIn(String s) {
         Window owner = textField.getScene().getWindow();
-        if (startMatches.isEmpty()) {
-            Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выберите файл!"));
+        if (matches.isEmpty()) {
+            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выберите файл!");
             return;
         }
         patternText = textField.getText();
@@ -210,21 +208,22 @@ public class Controller {
         }
     }
 
-    private boolean foundIn(LinkedList<Integer> collection, Direction direction, int from) {
+    private boolean foundIn(Direction direction, int from) {
         boolean found = false;
-        Iterator<Integer> iterator = direction.equals(Direction.NEXT) ?  collection.iterator() : collection.descendingIterator();
+        Iterator<Pair<Integer,Integer>> iterator = direction.equals(Direction.NEXT) ?  matches.iterator() : matches.descendingIterator();
         while (iterator.hasNext()) {
-            int value = iterator.next();
+            int startValue = iterator.next().getStart();
+            int endValue = iterator.next().getEnd();
             if (direction.equals(Direction.NEXT)) {
-                if (value >= from && textArea.getSelection().getEnd() != value + textField.getLength()) {
-                    textArea.selectRange(value, value + textField.getLength());
+                if (startValue >= from && textArea.getSelection().getEnd() != startValue + textField.getLength()) {
+                    textArea.selectRange(startValue, startValue + textField.getLength());
                     textArea.requestFollowCaret();
                     found = true;
                     break;
                 }
             } else {
-                if (value <= from && textArea.getSelection().getStart() != value - textField.getLength()) {
-                    textArea.selectRange(value, value - textField.getLength());
+                if (endValue <= from && textArea.getSelection().getStart() != endValue - textField.getLength()) {
+                    textArea.selectRange(endValue, endValue - textField.getLength());
                     textArea.requestFollowCaret();
                     found = true;
                     break;
@@ -271,7 +270,7 @@ public class Controller {
         pattern = Pattern.compile(text);
         Task<Void> task = new Task<Void>() {
             @Override
-            protected Void call() throws IOException {
+            protected Void call() {
                 try (Stream<Path> walk = Files.walk(Paths.get(path))) {
                     String finalPath = path;
 
