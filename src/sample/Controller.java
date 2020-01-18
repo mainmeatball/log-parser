@@ -10,17 +10,16 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Window;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.StyleClassedTextArea;
 import org.fxmisc.richtext.model.StyleSpans;
-import org.fxmisc.richtext.model.StyleSpansBuilder;
 
-import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -29,7 +28,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.regex.Matcher;
+import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -58,35 +57,31 @@ public class Controller {
     private String extension = "log";
     private String path = "/";
 
-
     //16x16 png Images for treeView icons
     Image folderImage = new Image(
             getClass().getResourceAsStream("/resources/closedFolder.png"));
     Image fileImage = new Image(
             getClass().getResourceAsStream("/resources/file.png"));
 
-    private ExecutorService executor;
+    final private ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @FXML
     public void initialize() {
         folderField.setText("/Users/Meatball/Desktop/test");
-        textField.setText("bla");
+        textField.setText("hello");
         textArea.setEditable(false);
         textArea.setWrapText(true);
-
-
         GridPane.setVgrow(vsPane, Priority.ALWAYS);
         GridPane.setHgrow(vsPane, Priority.ALWAYS);
         textArea.setPadding(new Insets(8));
         textArea.getStyleClass().add("text-area");
         gridPane.add(vsPane, 1, 3);
-        executor = Executors.newSingleThreadExecutor();
 
         textField.textProperty().addListener((observable, oldValue, newValue) -> {
             if (textArea.getText().isEmpty()) return;
             try {
                 pattern = Pattern.compile(newValue);
-                applyHighlighting(computeHighlightingAsync().get());
+                applyHighlighting(computeHighlightingAsync());
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
@@ -94,20 +89,23 @@ public class Controller {
 
         //set event when selecting file with double click
         treeView.setOnMouseClicked(mouseEvent -> {
-            if(mouseEvent.getClickCount() == 2)
-            {
+            if(mouseEvent.getClickCount() == 2) {
                 if (treeView.getSelectionModel().getSelectedItem() != null) {
                     TreeItem<String> item = treeView.getSelectionModel().getSelectedItem();
                     if (item.isLeaf()) {
                         try {
-                            String s = new String(Files.readAllBytes(Paths.get(path + getFullPath(item))));
-                            textArea.replaceText(s);
+                            RandomAccessFile file = new RandomAccessFile(path + pathFor(item), "r");
+
+                            // adding text from file to textArea
                             patternText = textField.getText();
                             patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
                             pattern = Pattern.compile(patternText);
-                            applyHighlighting(computeHighlightingAsync().get());
+                            addFileToTextArea(file, textArea);
+                            applyHighlighting(computeHighlightingAsync());
 
-                        } catch (IOException | InterruptedException | ExecutionException e) {
+//                            String s = new String(Files.readAllBytes(Paths.get(path + getFullPath(item))));
+//                            textArea.replaceText(s);
+                        } catch (Exception e) {
                             e.printStackTrace();
                         }
                     }
@@ -116,131 +114,107 @@ public class Controller {
         });
     }
 
-    List<Integer> startMatches = new ArrayList<>();
-    List<Integer> endMatches = new ArrayList<>();
+    private void addFileToTextArea(RandomAccessFile file, StyleClassedTextArea textArea) throws IOException {
+        FileChannel fc = file.getChannel();
+        ByteBuffer buf = ByteBuffer.allocate(1024);
+        StringBuilder sb = new StringBuilder();
+        while (fc.read(buf) != -1) {
+            buf.flip();
+            sb.append(Charset.defaultCharset().decode(buf));
+            buf.clear();
+        }
+        textArea.appendText(sb.toString());
+        fc.close();
+    }
 
-    private void applyHighlighting(StyleSpans<Collection<String>> highlighting) {
-        textArea.setStyleSpans(0, highlighting);
+    LinkedList<Integer> startMatches = new LinkedList<>();
+    LinkedList<Integer> endMatches = new LinkedList<>();
+
+    private void applyHighlighting(HighlighterResult highlighterResult) {
+        textArea.setStyleSpans(0, highlighterResult.getStyleSpans());
+        textArea.selectRange(highlighterResult.getSelectionBorders().getStart(), highlighterResult.getSelectionBorders().getEnd());
+        textArea.requestFollowCaret();
+        if (highlighterResult.getCount() == 0) {
+            textArea.moveTo(0);
+        }
     }
 
     //find and highlight all matches
-    public Task<StyleSpans<Collection<String>>> computeHighlightingAsync() {
-        String s = textArea.getText();
-        Task<StyleSpans<Collection<String>>> task = new Task<StyleSpans<Collection<String>>>() {
-            @Override
-            protected StyleSpans<Collection<String>> call() {
-                return computeHighlighting(s);
-            }
-        };
-        executor.execute(task);
-        return task;
-    }
-
-    private StyleSpans<Collection<String>> computeHighlighting(String text) {
-        Matcher matcher = pattern.matcher(text);
-        int count = 0;
-        int lastKwEnd = 0;
-        startMatches.clear();
-        endMatches.clear();
-        StyleSpansBuilder<Collection<String>> spansBuilder
-                = new StyleSpansBuilder<>();
-        while (matcher.find()) {
-            int ms = matcher.start();
-            int me = matcher.end();
-            startMatches.add(ms);
-            endMatches.add(me);
-            spansBuilder.add(Collections.singleton("white"), ms - lastKwEnd);
-            spansBuilder.add(Collections.singleton("lightblue"), me - ms);
-
-            lastKwEnd = me;
-            count++;
-            if (count == 1) {
-                Platform.runLater(() -> {
-                    textArea.selectRange(ms, ms + textField.getText().length());
-                    textArea.requestFollowCaret();
-                });
-
-            }
+    public HighlighterResult computeHighlightingAsync() throws InterruptedException, ExecutionException {
+        Highlighter highlighter = new Highlighter(textArea.getText(), pattern, startMatches, endMatches);
+        Future<HighlighterResult> task = executor.submit(highlighter);
+        while(!task.isDone()) {
+            Thread.sleep(1);
         }
-        if (count == 0) {
-            Platform.runLater(() -> textArea.moveTo(0));
-            spansBuilder.add(Collections.singleton("white"), text.length());
-            return spansBuilder.create();
-        }
-        spansBuilder.add(Collections.emptyList(), text.length() - lastKwEnd);
-        return spansBuilder.create();
+        return task.get();
     }
 
     @FXML
-    protected void handleNextMatchButtonAction() {
+    protected void nextMatch() {
+        highlightMatchesIn(textArea.getText());
+        if (!foundIn(endMatches, Direction.NEXT, textArea.getCaretPosition())) {
+            foundIn(endMatches, Direction.NEXT, 0);
+        }
+    }
+
+    @FXML
+    protected void previousMatch() {
+        highlightMatchesIn(textArea.getText());
+        if (!foundIn(endMatches, Direction.PREV, textArea.getCaretPosition())) {
+            foundIn(endMatches, Direction.PREV, textArea.getLength());
+        }
+    }
+
+    private enum Direction {
+        PREV,
+        NEXT
+    }
+
+    private void highlightMatchesIn(String s) {
         Window owner = textField.getScene().getWindow();
         if (startMatches.isEmpty()) {
             Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
                     "Выберите файл!"));
             return;
         }
-        boolean found = false;
         patternText = textField.getText();
         patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
         if (!pattern.toString().equals(patternText)) {
             pattern = Pattern.compile(patternText);
             try {
-                applyHighlighting(computeHighlightingAsync().get());
+                applyHighlighting(computeHighlightingAsync());
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
-            return;
-        }
-        for (Integer i : startMatches) {
-            if (i >= textArea.getCaretPosition() && textArea.getSelection().getEnd() != i + textField.getText().length()) {
-                found = true;
-                textArea.selectRange(i, i + textField.getText().length());
-                textArea.requestFollowCaret();
-                break;
-            }
-        }
-        if (!found) {
-            textArea.moveTo(0);
-            handleNextMatchButtonAction();
         }
     }
 
-    @FXML
-    protected void handlePrevMatchButtonAction() {
-        Window owner = textField.getScene().getWindow();
-        if (endMatches.isEmpty()) {
-            Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выберите файл!"));
-            return;
-        }
+    private boolean foundIn(LinkedList<Integer> collection, Direction direction, int from) {
         boolean found = false;
-        patternText = textField.getText();
-        patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
-        if (!pattern.toString().equals(patternText)) {
-            textArea.setStyleClass(0, textArea.getLength(), "white");
-            try {
-                applyHighlighting(computeHighlightingAsync().get());
-            } catch (InterruptedException | ExecutionException e) {
-                e.printStackTrace();
+        Iterator<Integer> iterator = direction.equals(Direction.NEXT) ?  collection.iterator() : collection.descendingIterator();
+        while (iterator.hasNext()) {
+            int value = iterator.next();
+            if (direction.equals(Direction.NEXT)) {
+                if (value >= from && textArea.getSelection().getEnd() != value + textField.getLength()) {
+                    textArea.selectRange(value, value + textField.getLength());
+                    textArea.requestFollowCaret();
+                    found = true;
+                    break;
+                }
+            } else {
+                if (value <= from && textArea.getSelection().getStart() != value - textField.getLength()) {
+                    textArea.selectRange(value, value - textField.getLength());
+                    textArea.requestFollowCaret();
+                    found = true;
+                    break;
+                }
             }
-            return;
         }
-        for (int i = endMatches.size() - 1; i >= 0; i--) {
-            if (endMatches.get(i) <= textArea.getCaretPosition() && textArea.getSelection().getStart() != endMatches.get(i) - textField.getText().length()) {
-                found = true;
-                textArea.selectRange(endMatches.get(i), endMatches.get(i) - textField.getText().length());
-                textArea.requestFollowCaret();
-                break;
-            }
-        }
-        if (!found) {
-            textArea.moveTo(textArea.getLength());
-            handlePrevMatchButtonAction();
-        }
+        return found;
     }
 
     @FXML
-    protected void handleSelectAllButtonAction() {
+    protected void selectAll() {
         Window owner = textField.getScene().getWindow();
         if (textArea.getLength() == 0) {
             Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
@@ -251,37 +225,36 @@ public class Controller {
     }
 
     @FXML
-    protected void handleSubmitButtonAction() {
+    protected void submit() {
         Window owner = textField.getScene().getWindow();
         String text = textField.getText();
         String userPath = folderField.getText();
         String userExtension = extensionField.getText();
         treeView.setRoot(null);
+        textArea.deleteText(0, textArea.getLength());
+        if (userPath != null && !userPath.trim().isEmpty()) {
+            path = userPath;
+        } else {
+            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                            "Выберите папку!");
+            return;
+        }
+        if (text.isEmpty()) {
+            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выберите искомое слово!");
+            return;
+        }
+        if (!userExtension.isEmpty()) {
+            extension = userExtension;
+        }
+        pattern = Pattern.compile(text);
         Task<Void> task = new Task<Void>() {
             @Override
-            protected Void call() {
-                Platform.runLater(() -> textArea.deleteText(0, textArea.getLength()));
-                if (userPath != null && !userPath.trim().isEmpty()) {
-                    path = userPath;
-                } else {
-                    Platform.runLater(() ->
-                    AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                            "Выберите папку!"));
-                    return null;
-                }
-                if (text.isEmpty()) {
-                    Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                            "Выберите искомое слово!"));
-                    return null;
-                }
-                pattern = Pattern.compile(text);
-                if (!userExtension.isEmpty()) {
-                    extension = userExtension;
-                }
+            protected Void call() throws IOException {
                 try (Stream<Path> walk = Files.walk(Paths.get(path))) {
                     String finalPath = path;
 
-                    // Find all files which end with extension and put them into list
+                    // find all files which end with extension and put them into list
                     List<String> result = walk.map(Path::toString)
                             .filter(f -> f.endsWith("." + extension))
                             .map(s -> s.substring(finalPath.length() + 1))
@@ -289,44 +262,78 @@ public class Controller {
 
                     if (result.isEmpty()) {
                         Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                                "Выбранной папки не существует!"));
+                                "Файлов с данным расширением в выбранной директории не найдено!"));
                         return null;
                     }
 
-                    // Add tree root folder
+                    // add tree root folder
                     String[] rootFolder = path.split("/");
                     TreeItem<String> root = new TreeItem<>(rootFolder[rootFolder.length - 1]);
                     root.setExpanded(true);
 
                     boolean noChildren = true;
-                    // Loop through list files
-                    for (String p : result) {
-                        byte[] fileContent = Files.readAllBytes(Paths.get(path + "/" + p));
-                        if (KMPMatch.indexOf(fileContent, text.getBytes()) != -1) {
 
-                            // split path by slashes and add as children
-                            String[] s = p.split("/");
-                            TreeItem<String> tempRoot = root;
-                            for (String f : s) {
-                                TreeItem<String> findNode = getTreeViewItem(tempRoot, f);
-                                if (findNode != null) {
-                                    tempRoot = findNode;
-                                } else {
-                                    TreeItem<String> node = new TreeItem<>(f);
-                                    tempRoot.getChildren().add(node);
-                                    tempRoot.setExpanded(true);
-                                    tempRoot = node;
+                    // loop through files list
+                    for (String p : result) {
+                        // read a file into byte array (does not work with big files)
+                        //byte[] fileContent = Files.readAllBytes(Paths.get(path + "/" + p));
+
+                        // read a file using buffer (works with big files)
+                        FileReader file = new FileReader(path + "/" + p);
+                        BufferedReader reader = new BufferedReader(file);
+                        String line;
+                        while((line = reader.readLine()) != null) {
+                            if((line.contains(text))) {
+                                String[] s = p.split("/");
+                                TreeItem<String> tempRoot = root;
+                                for (String f : s) {
+                                    // check if there is a file with the same name in the folder
+                                    TreeItem<String> findNode = findItemIn(tempRoot, f);
+                                    if (findNode != null) {
+                                        tempRoot = findNode;
+                                    } else {
+                                        TreeItem<String> node = new TreeItem<>(f);
+                                        tempRoot.getChildren().add(node);
+                                        tempRoot.setExpanded(true);
+                                        tempRoot = node;
+                                    }
                                 }
+                                System.out.println("found pattern in " + path + "/" + p);
+                                noChildren = false;
+                                break;
                             }
-                            noChildren = false;
                         }
+
+
+                        //
+
+
+//                        if (KMPMatch.indexOf(fileContent, text.getBytes()) != -1) {
+//
+//                            // split path by slashes and add as children
+//                            String[] s = p.split("/");
+//                            TreeItem<String> tempRoot = root;
+//                            for (String f : s) {
+//                                // check if there is a file with the same name in the folder
+//                                TreeItem<String> findNode = getTreeViewItem(tempRoot, f);
+//                                if (findNode != null) {
+//                                    tempRoot = findNode;
+//                                } else {
+//                                    TreeItem<String> node = new TreeItem<>(f);
+//                                    tempRoot.getChildren().add(node);
+//                                    tempRoot.setExpanded(true);
+//                                    tempRoot = node;
+//                                }
+//                            }
+//                            noChildren = false;
+//                        }
                     }
                     if (noChildren) {
                         Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
                                 "Искомого текста не найдено в файлах указанной директории."));
                         return null;
                     }
-                    setAllGraphics(root);
+                    initializeTreeIcons(root);
                     Platform.runLater(() -> treeView.setRoot(root));
                 } catch (NoSuchFileException e) {
                     Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
@@ -341,7 +348,7 @@ public class Controller {
     }
 
     @FXML
-    protected void chooseFolderButtonAction() {
+    protected void openFileBrowser() {
         DirectoryChooser directoryChooser = new DirectoryChooser();
         File selectedDirectory = directoryChooser.showDialog(folderField.getScene().getWindow());
         if (selectedDirectory != null) {
@@ -349,19 +356,19 @@ public class Controller {
         }
     }
 
-    public TreeItem<String> getTreeViewItem(TreeItem<String> item, String value) {
-        if (item != null && item.getValue().equals(value))
-            return  item;
-        if (item == null) return null;
-        for (TreeItem<String> child : item.getChildren()){
-            TreeItem<String> s = getTreeViewItem(child, value);
+    public TreeItem<String> findItemIn(TreeItem<String> container, String predicate) {
+        if (container != null && container.getValue().equals(predicate))
+            return container;
+        if (container == null) return null;
+        for (TreeItem<String> child : container.getChildren()){
+            TreeItem<String> s = findItemIn(child, predicate);
             if (s != null)
                 return s;
         }
         return null;
     }
 
-    public String getFullPath(TreeItem<String> item) {
+    public String pathFor(TreeItem<String> item) {
         StringBuilder fullPath = new StringBuilder();
         while (item.getParent() != null) {
             fullPath.insert(0, "/" + item.getValue());
@@ -370,7 +377,7 @@ public class Controller {
         return fullPath.toString();
     }
 
-    public void setAllGraphics(TreeItem<String> root) {
+    public void initializeTreeIcons(TreeItem<String> root) {
         if (root == null) return;
         if (root.isLeaf()) {
             root.setGraphic(new ImageView(fileImage));
@@ -382,7 +389,7 @@ public class Controller {
                 node.setGraphic(new ImageView(fileImage));
             } else {
                 node.setGraphic(new ImageView(folderImage));
-                setAllGraphics(node);
+                initializeTreeIcons(node);
             }
         }
     }
