@@ -48,7 +48,7 @@
                     prefWidth="80"
                     prefHeight="30"
                     defaultButton="true"
-                    onAction="#chooseFolderButtonAction">
+                    onAction="#openFileBrowser">
             </Button>
         </HBox>
     </VBox>
@@ -93,7 +93,7 @@
                     maxWidth="80"
                     prefHeight="30"
                     defaultButton="true"
-                    onAction="#handleSubmitButtonAction">
+                    onAction="#submit">
             </Button>
         </HBox>
         <GridPane.margin>
@@ -124,7 +124,7 @@
         <!--  Add select all button  -->
         <Button text="Выбрать все"
                 prefWidth="100" prefHeight="30" defaultButton="true"
-                onAction="#handleSelectAllButtonAction">
+                onAction="#selectAll">
             <HBox.margin>
                 <Insets right="10"/>
             </HBox.margin>
@@ -132,7 +132,7 @@
         <!--  Find prev highlight match button  -->
         <Button text="Пред."
                 prefWidth="60" prefHeight="30" defaultButton="true"
-                onAction="#handlePrevMatchButtonAction"
+                onAction="#previousMatch"
                 GridPane.hgrow="NEVER" GridPane.vgrow="NEVER">
             <HBox.margin>
                 <Insets right="10"/>
@@ -141,93 +141,7 @@
         <!--  Find next highlight match button  -->
         <Button text="След."
                 prefWidth="60" prefHeight="30" defaultButton="true"
-                onAction="#handleNextMatchButtonAction">
+                onAction="#nextMatch">
         </Button>
     </HBox>
-
-
-<!--    -->
-<!--    <TreeView GridPane.columnIndex="0" GridPane.rowIndex="0" GridPane.rowSpan="4" fx:id="treeView"-->
-<!--              GridPane.vgrow="ALWAYS" GridPane.hgrow="ALWAYS">-->
-<!--    </TreeView>-->
-
-<!--    <HBox GridPane.columnIndex="1" GridPane.rowIndex="0">-->
-
-<!--        &lt;!&ndash; Add Folder Field &ndash;&gt;-->
-<!--        <TextField fx:id="folderField"-->
-<!--                   prefHeight="30"-->
-<!--                   prefWidth="600"-->
-<!--                   maxWidth="Infinity"-->
-<!--                   GridPane.hgrow="ALWAYS"-->
-<!--                   promptText="Шаг 1: выберите папку">-->
-<!--            <HBox.margin>-->
-<!--                <Insets right="10"/>-->
-<!--            </HBox.margin>-->
-
-<!--        </TextField>-->
-
-<!--        &lt;!&ndash; Add Select Folder Button &ndash;&gt;-->
-<!--        <Button text="..."-->
-<!--                prefWidth="60" prefHeight="30" defaultButton="true"-->
-<!--                onAction="#chooseFolderButtonAction">-->
-<!--        </Button>-->
-
-<!--    </HBox>-->
-
-<!--    <HBox GridPane.columnIndex="1" GridPane.rowIndex="1">-->
-
-<!--        <TextField prefHeight="30"-->
-<!--                   prefWidth="500"-->
-<!--                   maxWidth="Infinity"-->
-<!--                   GridPane.hgrow="ALWAYS"-->
-<!--                   fx:id="textField"-->
-<!--                   promptText="Шаг 2: введите искомое слово и расширение файла">-->
-<!--            <HBox.margin>-->
-<!--                <Insets right="10"/>-->
-<!--            </HBox.margin>-->
-<!--        </TextField>-->
-
-<!--        <TextField prefHeight="30"-->
-<!--                   prefWidth="100"-->
-<!--                   maxWidth="100"-->
-<!--                   GridPane.hgrow="NEVER"-->
-<!--                   fx:id="extensionField"-->
-<!--                   promptText="log">-->
-<!--            <HBox.margin>-->
-<!--                <Insets right="10"/>-->
-<!--            </HBox.margin>-->
-<!--        </TextField>-->
-
-<!--        &lt;!&ndash; Add Submit Button &ndash;&gt;-->
-<!--        <Button text="Искать"-->
-<!--                prefWidth="80" prefHeight="30" defaultButton="true"-->
-<!--                onAction="#handleSubmitButtonAction">-->
-<!--        </Button>-->
-<!--    </HBox>-->
-
-<!--    <HBox GridPane.columnIndex="1" GridPane.rowIndex="3"-->
-<!--          alignment="CENTER"-->
-<!--    >-->
-
-<!--        <Button text="Выбрать все"-->
-<!--                prefWidth="100" prefHeight="30" defaultButton="true"-->
-<!--                onAction="#handleSelectAllButtonAction">-->
-<!--            <HBox.margin>-->
-<!--                <Insets right="10"/>-->
-<!--            </HBox.margin>-->
-<!--        </Button>-->
-<!--        <Button text="Пред."-->
-<!--                prefWidth="60" prefHeight="30" defaultButton="true"-->
-<!--                onAction="#handlePrevMatchButtonAction"-->
-<!--                GridPane.hgrow="NEVER" GridPane.vgrow="NEVER">-->
-<!--            <HBox.margin>-->
-<!--                <Insets right="10"/>-->
-<!--            </HBox.margin>-->
-<!--        </Button>-->
-<!--        <Button text="След."-->
-<!--                prefWidth="60" prefHeight="30" defaultButton="true"-->
-<!--                onAction="#handleNextMatchButtonAction">-->
-<!--        </Button>-->
-<!--    </HBox>-->
-
 </GridPane>
