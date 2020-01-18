@@ -14,6 +14,8 @@ public class Main extends Application {
     public void start(Stage primaryStage) throws IOException {
         Parent root = FXMLLoader.load(getClass().getResource("/resources/sample.fxml"));
         primaryStage.setTitle("Log parser");
+        primaryStage.setMinHeight(500);
+        primaryStage.setMinWidth(540);
         Scene scene = new Scene(root, 1000, 600);
         scene.getStylesheets().add("/resources/text-area.css");
         primaryStage.setScene(scene);

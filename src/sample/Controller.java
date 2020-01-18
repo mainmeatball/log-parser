@@ -10,6 +10,7 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Window;
 import org.fxmisc.flowless.VirtualizedScrollPane;
@@ -19,6 +20,7 @@ import org.fxmisc.richtext.model.StyleSpansBuilder;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -58,10 +60,8 @@ public class Controller {
 
 
     //16x16 png Images for treeView icons
-    Image closedFolderImage = new Image(
+    Image folderImage = new Image(
             getClass().getResourceAsStream("/resources/closedFolder.png"));
-    Image openedFolderImage = new Image(
-            getClass().getResourceAsStream("/resources/openedFolder.png"));
     Image fileImage = new Image(
             getClass().getResourceAsStream("/resources/file.png"));
 
@@ -74,11 +74,12 @@ public class Controller {
         textArea.setEditable(false);
         textArea.setWrapText(true);
 
+
         GridPane.setVgrow(vsPane, Priority.ALWAYS);
         GridPane.setHgrow(vsPane, Priority.ALWAYS);
-        textArea.setPadding(new Insets(6));
+        textArea.setPadding(new Insets(8));
         textArea.getStyleClass().add("text-area");
-        gridPane.add(vsPane, 1, 2);
+        gridPane.add(vsPane, 1, 3);
         executor = Executors.newSingleThreadExecutor();
 
         textField.textProperty().addListener((observable, oldValue, newValue) -> {
@@ -172,6 +173,12 @@ public class Controller {
 
     @FXML
     protected void handleNextMatchButtonAction() {
+        Window owner = textField.getScene().getWindow();
+        if (startMatches.isEmpty()) {
+            Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выберите файл!"));
+            return;
+        }
         boolean found = false;
         patternText = textField.getText();
         patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
@@ -200,6 +207,12 @@ public class Controller {
 
     @FXML
     protected void handlePrevMatchButtonAction() {
+        Window owner = textField.getScene().getWindow();
+        if (endMatches.isEmpty()) {
+            Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выберите файл!"));
+            return;
+        }
         boolean found = false;
         patternText = textField.getText();
         patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
@@ -228,6 +241,12 @@ public class Controller {
 
     @FXML
     protected void handleSelectAllButtonAction() {
+        Window owner = textField.getScene().getWindow();
+        if (textArea.getLength() == 0) {
+            Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выберите файл!"));
+            return;
+        }
         textArea.selectRange(0, textArea.getLength());
     }
 
@@ -245,13 +264,14 @@ public class Controller {
                 if (userPath != null && !userPath.trim().isEmpty()) {
                     path = userPath;
                 } else {
+                    Platform.runLater(() ->
                     AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                            "Выберите папку!");
+                            "Выберите папку!"));
                     return null;
                 }
                 if (text.isEmpty()) {
-                    AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                            "Выберите искомое слово!");
+                    Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                            "Выберите искомое слово!"));
                     return null;
                 }
                 pattern = Pattern.compile(text);
@@ -268,7 +288,8 @@ public class Controller {
                             .collect(Collectors.toList());
 
                     if (result.isEmpty()) {
-                        treeView.setRoot(null);
+                        Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                                "Выбранной папки не существует!"));
                         return null;
                     }
 
@@ -277,6 +298,7 @@ public class Controller {
                     TreeItem<String> root = new TreeItem<>(rootFolder[rootFolder.length - 1]);
                     root.setExpanded(true);
 
+                    boolean noChildren = true;
                     // Loop through list files
                     for (String p : result) {
                         byte[] fileContent = Files.readAllBytes(Paths.get(path + "/" + p));
@@ -291,25 +313,24 @@ public class Controller {
                                     tempRoot = findNode;
                                 } else {
                                     TreeItem<String> node = new TreeItem<>(f);
-                                    node.expandedProperty().addListener(a -> setAllGraphics(node));
                                     tempRoot.getChildren().add(node);
                                     tempRoot.setExpanded(true);
                                     tempRoot = node;
                                 }
                             }
+                            noChildren = false;
                         }
                     }
-                    setAllGraphics(root);
-                    root.expandedProperty().addListener(f -> setAllGraphics(root));
-                    Platform.runLater(() -> treeView.setRoot(root));
-                    if (root.isLeaf()) {
-                        treeView.setRoot(null);
-                        AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                                "Искомого текста не найдено в файлах указанной директории.");
+                    if (noChildren) {
+                        Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                                "Искомого текста не найдено в файлах указанной директории."));
+                        return null;
                     }
+                    setAllGraphics(root);
+                    Platform.runLater(() -> treeView.setRoot(root));
                 } catch (NoSuchFileException e) {
-                    AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                            "Выбранной папки не существует!");
+                    Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                            "Выбранной папки не существует!"));
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -317,7 +338,6 @@ public class Controller {
             }
         };
         executor.execute(task);
-        //new Thread(task).start();
     }
 
     @FXML
@@ -355,20 +375,13 @@ public class Controller {
         if (root.isLeaf()) {
             root.setGraphic(new ImageView(fileImage));
         } else {
-            if (root.isExpanded()) {
-                root.setGraphic(new ImageView(openedFolderImage));
-            } else {
-                root.setGraphic(new ImageView(closedFolderImage));
-            }
+            root.setGraphic(new ImageView(folderImage));
         }
         for (TreeItem<String> node : root.getChildren()) {
             if (node.isLeaf()) {
                 node.setGraphic(new ImageView(fileImage));
-            } else if (node.isExpanded()) {
-                node.setGraphic(new ImageView(openedFolderImage));
-                setAllGraphics(node);
             } else {
-                node.setGraphic(new ImageView(closedFolderImage));
+                node.setGraphic(new ImageView(folderImage));
                 setAllGraphics(node);
             }
         }
