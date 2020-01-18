@@ -213,20 +213,23 @@ public class Controller {
         Iterator<Pair<Integer,Integer>> iterator = direction.equals(Direction.NEXT) ?  matches.iterator() : matches.descendingIterator();
         while (iterator.hasNext()) {
             Pair<Integer, Integer> matchRange = iterator.next();
-            if (direction.equals(Direction.NEXT)) {
-                if (matchRange.getEnd() > from) {
-                    textArea.selectRange(matchRange.getStart(), matchRange.getEnd());
-                    textArea.requestFollowCaret();
-                    found = true;
+            switch (direction) {
+                case NEXT:
+                    if (matchRange.getEnd() > from) {
+                        textArea.selectRange(matchRange.getStart(), matchRange.getEnd());
+                        textArea.requestFollowCaret();
+                        found = true;
+                        break;
+                    }
                     break;
-                }
-            } else {
-                if (matchRange.getEnd() < from) {
-                    textArea.selectRange(matchRange.getStart(), matchRange.getEnd());
-                    textArea.requestFollowCaret();
-                    found = true;
+                case PREV:
+                    if (matchRange.getEnd() < from) {
+                        textArea.selectRange(matchRange.getStart(), matchRange.getEnd());
+                        textArea.requestFollowCaret();
+                        found = true;
+                        break;
+                    }
                     break;
-                }
             }
         }
         return found;
