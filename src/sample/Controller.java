@@ -177,7 +177,7 @@ public class Controller {
     protected void nextMatch() {
         highlightMatchesIn(textArea.getText());
         if (!foundIn(Direction.NEXT, textArea.getCaretPosition())) {
-            foundIn(Direction.NEXT, 0);
+            foundIn(Direction.NEXT, -1);
         }
     }
 
@@ -185,7 +185,7 @@ public class Controller {
     protected void previousMatch() {
         highlightMatchesIn(textArea.getText());
         if (!foundIn(Direction.PREV, textArea.getCaretPosition())) {
-            foundIn(Direction.PREV, textArea.getLength());
+            foundIn(Direction.PREV, textArea.getLength() + 1);
         }
     }
 
@@ -212,18 +212,17 @@ public class Controller {
         boolean found = false;
         Iterator<Pair<Integer,Integer>> iterator = direction.equals(Direction.NEXT) ?  matches.iterator() : matches.descendingIterator();
         while (iterator.hasNext()) {
-            int startValue = iterator.next().getStart();
-            int endValue = iterator.next().getEnd();
+            Pair<Integer, Integer> matchRange = iterator.next();
             if (direction.equals(Direction.NEXT)) {
-                if (startValue >= from && textArea.getSelection().getEnd() != startValue + textField.getLength()) {
-                    textArea.selectRange(startValue, startValue + textField.getLength());
+                if (matchRange.getEnd() > from) {
+                    textArea.selectRange(matchRange.getStart(), matchRange.getEnd());
                     textArea.requestFollowCaret();
                     found = true;
                     break;
                 }
             } else {
-                if (endValue <= from && textArea.getSelection().getStart() != endValue - textField.getLength()) {
-                    textArea.selectRange(endValue, endValue - textField.getLength());
+                if (matchRange.getEnd() < from) {
+                    textArea.selectRange(matchRange.getStart(), matchRange.getEnd());
                     textArea.requestFollowCaret();
                     found = true;
                     break;
