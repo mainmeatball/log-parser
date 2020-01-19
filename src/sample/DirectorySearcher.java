@@ -53,7 +53,7 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
         private TreeItem<String> createDirectoryTreeFrom(Collection<String> collection, String searchInput) throws IOException {
 
             // loop through files list
-            TreeItem<String> root = new TreeItem<>(path.substring(path.lastIndexOf("/")));
+            TreeItem<String> root = new TreeItem<>(path.substring(path.lastIndexOf("/") + 1));
             root.setExpanded(true);
             for (String p : collection) {
 

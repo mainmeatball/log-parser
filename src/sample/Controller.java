@@ -1,5 +1,6 @@
 package sample;
 
+import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
@@ -11,6 +12,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Window;
+import javafx.util.Duration;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.StyleClassedTextArea;
 
@@ -72,10 +74,14 @@ public class Controller {
         textArea.getStyleClass().add("text-area");
         gridPane.add(vsPane, 1, 3);
 
+        PauseTransition pause = new PauseTransition(Duration.millis(100));
         textField.textProperty().addListener((observable, oldValue, newValue) -> {
-            if (textArea.getText().isEmpty()) return;
-            pattern = Pattern.compile(newValue);
-            highlight(textArea, pattern);
+            pause.setOnFinished(event -> {
+                if (textArea.getText().isEmpty()) return;
+                pattern = Pattern.compile(newValue);
+                highlight(textArea, pattern);
+            });
+            pause.playFromStart();
         });
     }
 
@@ -171,21 +177,8 @@ public class Controller {
 
     private void addFileToTextArea(String path, StyleClassedTextArea textArea) throws IOException {
         textArea.clear();
-        textArea.appendText(getTextFromFile(path));
-    }
-
-    private String getTextFromFile(String path) throws IOException {
-        RandomAccessFile file = new RandomAccessFile(path, "r");
-        FileChannel fc = file.getChannel();
-        ByteBuffer buf = ByteBuffer.allocate(1024);
-        StringBuilder sb = new StringBuilder();
-        while (fc.read(buf) != -1) {
-            buf.flip();
-            sb.append(Charset.defaultCharset().decode(buf));
-            buf.clear();
-        }
-        fc.close();
-        return sb.toString();
+        FileHandler fileHandler = new FileHandler(path);
+        textArea.appendText(fileHandler.getText());
     }
 
     private void highlight(StyleClassedTextArea textArea, Pattern pattern) {
