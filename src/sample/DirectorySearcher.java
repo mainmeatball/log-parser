@@ -38,22 +38,22 @@ public class DirectorySearcher implements Callable<TreeItem<String>> {
                 .filter(f -> f.endsWith("." + extension))
                 .map(s -> s.substring(path.length() + 1))
                 .collect(Collectors.toList());
+
+        walk.close();
         if (result.isEmpty()) {
             throw new NoSuchExtensionFileException();
         }
-        // add chosen directory as tree root
-        String[] directoryRoot = path.split("/");
-        TreeItem<String> root = new TreeItem<>(directoryRoot[directoryRoot.length - 1]);
-        root.setExpanded(true);
-        if (!setDirectoryTreeTo(root, result, searchInput)) {
+        TreeItem<String> root;
+        if ((root = createDirectoryTreeFrom(result, searchInput)).getChildren().isEmpty()) {
             throw new NoSuchFileException(path);
         }
         return root;
     }
 
-        private boolean setDirectoryTreeTo(TreeItem<String> root, Collection<String> collection, String searchInput) throws IOException {
+        private TreeItem<String> createDirectoryTreeFrom(Collection<String> collection, String searchInput) throws IOException {
             // loop through files list
-            boolean hasChildren = false;
+            TreeItem<String> root = new TreeItem<>(path.substring(path.lastIndexOf("/")));
+            root.setExpanded(true);
             for (String p : collection) {
                 // read a file into byte array (does not work with big files)
                 //byte[] fileContent = Files.readAllBytes(Paths.get(path + "/" + p));
@@ -78,22 +78,25 @@ public class DirectorySearcher implements Callable<TreeItem<String>> {
                                 tempRoot = node;
                             }
                         }
-                        hasChildren = true;
                         break;
                     }
                 }
             }
-            return hasChildren;
+            return root;
         }
 
     public TreeItem<String> findItemIn(TreeItem<String> container, String predicate) {
-        if (container != null && container.getValue().equals(predicate))
+        if (container != null && container.getValue().equals(predicate)) {
             return container;
-        if (container == null) return null;
-        for (TreeItem<String> child : container.getChildren()){
+        }
+        if (container == null) {
+            return null;
+        }
+        for (TreeItem<String> child : container.getChildren()) {
             TreeItem<String> s = findItemIn(child, predicate);
-            if (s != null)
+            if (s != null) {
                 return s;
+            }
         }
         return null;
     }
