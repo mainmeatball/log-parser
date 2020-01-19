@@ -62,12 +62,11 @@ public class Controller {
     Image fileImage = new Image(
             getClass().getResourceAsStream("/resources/file.png"));
 
-    final private ExecutorService executor = Executors.newSingleThreadExecutor();
-
-    private enum Direction {
-        PREV,
-        NEXT
-    }
+    final private ExecutorService executor = Executors.newSingleThreadExecutor(threadExecutor -> {
+        Thread thread = new Thread(threadExecutor);
+        thread.setDaemon(true);
+        return thread;
+    });
 
     @FXML
     public void initialize() {
