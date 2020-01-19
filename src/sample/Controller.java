@@ -17,9 +17,7 @@ import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.StyleClassedTextArea;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.charset.Charset;
+import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.BiPredicate;
@@ -46,7 +44,8 @@ public class Controller {
 
     private Pattern pattern;
     private String extension = "log";
-    private String path = "/";
+
+    private final String SPECIAL_REGEX_CHARS = "([<(\\[{\\\\^\\-=$!|\\]})?*+.>])";
 
     private LinkedList<Pair<Integer,Integer>> matches = new LinkedList<>();
 
@@ -78,10 +77,18 @@ public class Controller {
         textField.textProperty().addListener((observable, oldValue, newValue) -> {
             pause.setOnFinished(event -> {
                 if (textArea.getText().isEmpty()) return;
-                pattern = Pattern.compile(newValue);
-                highlight(textArea, pattern);
+                pattern = Pattern.compile(newValue.replaceAll(SPECIAL_REGEX_CHARS, "\\\\$1"));
+                highlight(textArea, pattern, newValue.length());
             });
             pause.playFromStart();
+        });
+
+        extensionField.textProperty().addListener((observable, oldValue, newValue) -> {
+            if (textArea.getText().isEmpty()) {
+                extension = "log";
+            } else {
+                extension = newValue;
+            }
         });
     }
 
@@ -99,9 +106,9 @@ public class Controller {
         }
         try {
             // Escape special regex characters
-            pattern = Pattern.compile(textField.getText().replaceAll("([<(\\[{\\\\^\\-=$!|\\]})?*+.>])", "\\\\$1"));
-            addFileToTextArea(path + pathFor(item), textArea);
-            highlight(textArea, pattern);
+            pattern = Pattern.compile(textField.getText().replaceAll(SPECIAL_REGEX_CHARS, "\\\\$1"));
+            addFileToTextArea(folderField.getText() + pathFor(item), textArea);
+            highlight(textArea, pattern, textField.getText().length());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -170,9 +177,8 @@ public class Controller {
         }
         treeView.setRoot(null);
         textArea.clear();
-        path = folderField.getText();
         pattern = Pattern.compile(textField.getText());
-        computeSearchingIn(path, extension, textField.getText());
+        computeSearchingIn(folderField.getText(), extension, textField.getText());
     }
 
     private void addFileToTextArea(String path, StyleClassedTextArea textArea) throws IOException {
@@ -181,8 +187,8 @@ public class Controller {
         textArea.appendText(fileHandler.getText());
     }
 
-    private void highlight(StyleClassedTextArea textArea, Pattern pattern) {
-        Highlighter highlighter = new Highlighter(textArea.getText(), pattern);
+    private void highlight(StyleClassedTextArea textArea, Pattern pattern, int length) {
+        Highlighter highlighter = new Highlighter(textArea.getText(), pattern, length);
         highlighter.setOnSucceeded(event -> {
             HighlighterResult highlighterResult = highlighter.getValue();
             textArea.setStyleSpans(0, highlighterResult.getStyleSpans());
@@ -211,11 +217,29 @@ public class Controller {
     //find and highlight all matches
     private void computeSearchingIn(String path, String extension, String text) {
         DirectorySearcher directorySearcher = new DirectorySearcher(path, extension, text);
+
+        directorySearcher.setOnFailed(event -> {
+            if (directorySearcher.getException() instanceof NoSuchExtensionFileException) {
+                AlertHelper.showAlert(Alert.AlertType.ERROR, textField.getScene().getWindow(), "Ошибка!",
+                        "Файлов с указанным расширением в выбранной директории не найдено.");
+            } else if (directorySearcher.getException() instanceof  NoSuchDirectoryException) {
+                AlertHelper.showAlert(Alert.AlertType.ERROR, textField.getScene().getWindow(), "Ошибка!",
+                        "Выбранной директории не существует.");
+            } else if (directorySearcher.getException() instanceof NoSuchFileException) {
+                AlertHelper.showAlert(Alert.AlertType.ERROR, textField.getScene().getWindow(), "Ошибка!",
+                        "Файлов с данным искомым словом в выбранной директории не найдено.");
+            } else {
+                AlertHelper.showAlert(Alert.AlertType.ERROR, textField.getScene().getWindow(), "Ошибка!",
+                        "Произошла ошибка!");
+            }
+        });
+
         directorySearcher.setOnSucceeded(event -> {
             TreeItem<String> root = directorySearcher.getValue();
             treeView.setRoot(root);
             initializeTreeIcons(root);
         });
+
         executor.execute(directorySearcher);
     }
 
