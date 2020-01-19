@@ -31,12 +31,17 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
     }
 
     @Override
-    public TreeItem<String> call() throws IOException, NoSuchExtensionFileException {
+    public TreeItem<String> call() throws IOException {
         return search();
     }
 
-    private TreeItem<String> search() throws IOException, NoSuchExtensionFileException {
-        Stream<Path> walk = Files.walk(Paths.get(path));
+    private TreeItem<String> search() throws IOException {
+        Stream<Path> walk;
+        try {
+            walk = Files.walk(Paths.get(path));
+        } catch (NoSuchFileException e) {
+            throw new NoSuchDirectoryException(e.getFile());
+        }
         List<String> result = walk.map(Path::toString)
                 .filter(f -> f.endsWith("." + extension))
                 .map(s -> s.substring(path.length() + 1))
@@ -44,7 +49,7 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
 
         walk.close();
         if (result.isEmpty()) {
-            throw new NoSuchExtensionFileException();
+            throw new NoSuchExtensionFileException(path);
         }
         TreeItem<String> root = createDirectoryTreeFrom(result, searchInput);
         if (root.getChildren().isEmpty()) {
