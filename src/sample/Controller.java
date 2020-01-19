@@ -1,6 +1,5 @@
 package sample;
 
-import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
@@ -47,10 +46,12 @@ public class Controller {
     private String extension = "log";
     private String path = "/";
 
+    private LinkedList<Pair<Integer,Integer>> matches = new LinkedList<>();
+
     //16x16 png Images for treeView icons
-    Image folderImage = new Image(
-            getClass().getResourceAsStream("/resources/closedFolder.png"));
-    Image fileImage = new Image(
+    private final Image folderImage = new Image(
+            getClass().getResourceAsStream("/resources/folder.png"));
+    private final Image fileImage = new Image(
             getClass().getResourceAsStream("/resources/file.png"));
 
     final private ExecutorService executor = Executors.newSingleThreadExecutor(threadExecutor -> {
@@ -74,7 +75,7 @@ public class Controller {
         textField.textProperty().addListener((observable, oldValue, newValue) -> {
             if (textArea.getText().isEmpty()) return;
             pattern = Pattern.compile(newValue);
-            highlight(textArea.getText());
+            highlight(textArea, pattern);
         });
     }
 
@@ -90,7 +91,7 @@ public class Controller {
                     patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
                     pattern = Pattern.compile(patternText);
                     addFileToTextArea(file, textArea);
-                    highlight(textArea.getText());
+                    highlight(textArea, pattern);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -111,8 +112,8 @@ public class Controller {
     protected void selectAll() {
         Window owner = textField.getScene().getWindow();
         if (textArea.getLength() == 0) {
-            Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выберите файл!"));
+            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выберите файл!");
             return;
         }
         textArea.selectRange(0, textArea.getLength());
@@ -120,7 +121,13 @@ public class Controller {
 
     @FXML
     protected void nextMatch() {
-        highlightMatchesFor(textArea.getText());
+        Window owner = textField.getScene().getWindow();
+        if (matches.isEmpty()) {
+            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выберите файл!");
+            return;
+        }
+        highlightIfSearchWordChanged(textField.getText());
         Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, Direction.NEXT, textArea.getCaretPosition());
         if (selectionBounds.isEqual()) {
             selectionBounds = getSelectionBounds(matches, Direction.NEXT, -1);
@@ -131,10 +138,16 @@ public class Controller {
 
     @FXML
     protected void previousMatch() {
-        highlightMatchesFor(textArea.getText());
+        Window owner = textField.getScene().getWindow();
+        if (matches.isEmpty()) {
+            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+                    "Выберите файл!");
+            return;
+        }
+        highlightIfSearchWordChanged(textField.getText());
         Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, Direction.PREV, textArea.getCaretPosition());
         if (selectionBounds.isEqual()) {
-            selectionBounds = getSelectionBounds(matches, Direction.PREV, -1);
+            selectionBounds = getSelectionBounds(matches, Direction.PREV, textArea.getLength() + 1);
         }
         textArea.selectRange(selectionBounds.getStart(), selectionBounds.getEnd());
         textArea.requestFollowCaret();
@@ -143,28 +156,24 @@ public class Controller {
     @FXML
     protected void submit() {
         Window owner = textField.getScene().getWindow();
-        String text = textField.getText();
-        String userPath = folderField.getText();
-        String userExtension = extensionField.getText();
-        treeView.setRoot(null);
-        textArea.deleteText(0, textArea.getLength());
-        if (userPath != null && !userPath.trim().isEmpty()) {
-            path = userPath;
-        } else {
+        if (folderField.getText() == null || folderField.getText().trim().isEmpty()) {
             AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
                     "Выберите папку!");
             return;
         }
-        if (text.isEmpty()) {
+        if (textField.getText().isEmpty()) {
             AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
                     "Выберите искомое слово!");
             return;
         }
-        if (!userExtension.isEmpty()) {
-            extension = userExtension;
+        if (!extensionField.getText().isEmpty()) {
+            extension = extensionField.getText();
         }
-        pattern = Pattern.compile(text);
-        computeSearching(text);
+        treeView.setRoot(null);
+        textArea.deleteText(0, textArea.getLength());
+        path = folderField.getText();
+        pattern = Pattern.compile(textField.getText());
+        computeSearchingIn(path, extension, textField.getText());
     }
 
     private void addFileToTextArea(RandomAccessFile file, StyleClassedTextArea textArea) throws IOException {
@@ -180,34 +189,27 @@ public class Controller {
         fc.close();
     }
 
-    LinkedList<Pair<Integer,Integer>> matches = new LinkedList<>();
-
-    private void highlight(String text) {
-        Highlighter highlighter = new Highlighter(text, pattern, matches);
+    private void highlight(StyleClassedTextArea textArea, Pattern pattern) {
+        Highlighter highlighter = new Highlighter(textArea.getText(), pattern);
         highlighter.setOnSucceeded(event -> {
             HighlighterResult highlighterResult = highlighter.getValue();
             textArea.setStyleSpans(0, highlighterResult.getStyleSpans());
-            textArea.selectRange(highlighterResult.getSelectionBorders().getStart(), highlighterResult.getSelectionBorders().getEnd());
+            textArea.selectRange(highlighterResult.getSelectionBounds().getStart(), highlighterResult.getSelectionBounds().getEnd());
             textArea.requestFollowCaret();
             if (highlighterResult.getCount() == 0) {
                 textArea.moveTo(0);
             }
+            matches = highlighterResult.getMatches();
         });
         executor.execute(highlighter);
     }
 
-    private void highlightMatchesFor(String entry) {
-        Window owner = textField.getScene().getWindow();
-        if (matches.isEmpty()) {
-            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выберите файл!");
-            return;
-        }
+    private void highlightIfSearchWordChanged(String text) {
         // add backslashes to all occurrences of special characters in search word to make them regular characters
-        patternText = textField.getText().replaceAll("([^0-9a-zA-Z])", "\\\\$1");
+        patternText = text.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
         if (!pattern.toString().equals(patternText)) {
             pattern = Pattern.compile(patternText);
-            highlight(textArea.getText());
+            highlight(textArea, pattern);
         }
     }
 
@@ -224,14 +226,14 @@ public class Controller {
     }
 
     //find and highlight all matches
-    private void computeSearching(String text) {
+    private void computeSearchingIn(String path, String extension, String text) {
         DirectorySearcher directorySearcher = new DirectorySearcher(path, extension, text);
-        executor.execute(directorySearcher);
         directorySearcher.setOnSucceeded(event -> {
             TreeItem<String> root = directorySearcher.getValue();
             treeView.setRoot(root);
             initializeTreeIcons(root);
         });
+        executor.execute(directorySearcher);
     }
 
     public String pathFor(TreeItem<String> item) {

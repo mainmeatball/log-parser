@@ -5,32 +5,29 @@ import org.fxmisc.richtext.model.StyleSpansBuilder;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Highlighter extends Task<HighlighterResult> {
     String text;
     Pattern pattern;
-    Collection<Pair<Integer,Integer>> matches;
 
-    public Highlighter(String text, Pattern pattern, Collection<Pair<Integer,Integer>> matches) {
+    public Highlighter(String text, Pattern pattern) {
         this.text = text;
         this.pattern = pattern;
-        this.matches = matches;
     }
 
     @Override
-    public HighlighterResult call() {
-        return computeHighlighting(text);
-    }
+    public HighlighterResult call() { return computeHighlighting(text); }
 
     private HighlighterResult computeHighlighting(String text) {
         Matcher matcher = pattern.matcher(text);
+        LinkedList<Pair<Integer, Integer>> matches = new LinkedList<>();
         int count = 0;
         int lastKwEnd = 0;
         int start = 0;
         int end = 0;
-        matches.clear();
         StyleSpansBuilder<Collection<String>> spansBuilder
                 = new StyleSpansBuilder<>();
         while (matcher.find()) {
@@ -48,9 +45,9 @@ public class Highlighter extends Task<HighlighterResult> {
         }
         if (count == 0) {
             spansBuilder.add(Collections.singleton("white"), text.length());
-            return new HighlighterResult(spansBuilder.create(), new Pair<>(start, end), 0);
+//            return new HighlighterResult(spansBuilder.create(), new Pair<>(start, end), 0);
         }
         spansBuilder.add(Collections.emptyList(), text.length() - lastKwEnd);
-        return new HighlighterResult(spansBuilder.create(), new Pair<>(start, end), count);
+        return new HighlighterResult(spansBuilder.create(), matches, new Pair<>(start, end), count);
     }
 }
