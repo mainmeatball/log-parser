@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.BiPredicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -150,17 +151,23 @@ public class Controller {
     @FXML
     protected void nextMatch() {
         highlightMatchesIn(textArea.getText());
-        if (!foundIn(Direction.NEXT, textArea.getCaretPosition())) {
-            foundIn(Direction.NEXT, -1);
+        Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, Direction.NEXT, textArea.getCaretPosition());
+        if (selectionBounds.isEqual()) {
+            selectionBounds = getSelectionBounds(matches, Direction.NEXT, -1);
         }
+        textArea.selectRange(selectionBounds.getStart(), selectionBounds.getEnd());
+        textArea.requestFollowCaret();
     }
 
     @FXML
     protected void previousMatch() {
         highlightMatchesIn(textArea.getText());
-        if (!foundIn(Direction.PREV, textArea.getCaretPosition())) {
-            foundIn(Direction.PREV, textArea.getLength() + 1);
+        Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, Direction.PREV, textArea.getCaretPosition());
+        if (selectionBounds.isEqual()) {
+            selectionBounds = getSelectionBounds(matches, Direction.PREV, -1);
         }
+        textArea.selectRange(selectionBounds.getStart(), selectionBounds.getEnd());
+        textArea.requestFollowCaret();
     }
 
     private void highlightMatchesIn(String s) {
@@ -182,23 +189,14 @@ public class Controller {
         }
     }
 
-    // use .selectRange after usage of this method
-    private Pair<Integer, Integer> getSelectionBounds(LinkedList<Pair<Integer, Integer>> matches, Direction direction, int caretPos) {
+    private Pair<Integer, Integer> getSelectionBounds(LinkedList<Pair<Integer, Integer>> matches, Direction direction, int caretPosition) {
         Iterator<Pair<Integer,Integer>> iterator = direction.equals(Direction.NEXT) ?  matches.iterator() : matches.descendingIterator();
+        BiPredicate<Pair<Integer, Integer>, Integer> predicate = direction.equals(Direction.NEXT) ?
+                                                                (matchRange, caretPos) -> matchRange.getEnd() > caretPos :
+                                                                (matchRange, caretPos) -> matchRange.getEnd() < caretPos;
         while (iterator.hasNext()) {
             Pair<Integer, Integer> matchRange = iterator.next();
-            switch (direction) {
-                case NEXT:
-                    if (matchRange.getEnd() > caretPos) {
-                        return new Pair<>(matchRange.getStart(), matchRange.getEnd());
-                    }
-                    break;
-                case PREV:
-                    if (matchRange.getEnd() < caretPos) {
-                        return new Pair<>(matchRange.getStart(), matchRange.getEnd());
-                    }
-                    break;
-            }
+            if (predicate.test(matchRange, caretPosition)) return matchRange;
         }
         return new Pair<>(0, 0);
     }

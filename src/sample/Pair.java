@@ -17,4 +17,8 @@ public class Pair<L, R> {
     public R getEnd() {
         return end;
     }
+
+    public boolean isEqual() {
+        return start == end;
+    }
 }
