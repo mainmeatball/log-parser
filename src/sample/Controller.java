@@ -6,6 +6,7 @@ import javafx.scene.control.*;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.stage.DirectoryChooser;
@@ -42,7 +43,6 @@ public class Controller {
     VirtualizedScrollPane<StyleClassedTextArea> vsPane = new VirtualizedScrollPane<>(textArea);
 
     private Pattern pattern;
-    private String patternText;
     private String extension = "log";
     private String path = "/";
 
@@ -80,22 +80,24 @@ public class Controller {
     }
 
     @FXML
-    protected void showFileAndHighlightMatches() {
-        if (treeView.getSelectionModel().getSelectedItem() != null) {
-            TreeItem<String> item = treeView.getSelectionModel().getSelectedItem();
-            if (item.isLeaf()) {
-                try {
-                    RandomAccessFile file = new RandomAccessFile(path + pathFor(item), "r");
-                    // adding text from file to textArea
-                    patternText = textField.getText();
-                    patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
-                    pattern = Pattern.compile(patternText);
-                    addFileToTextArea(file, textArea);
-                    highlight(textArea, pattern);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
+    protected void showFileAndHighlightMatches(MouseEvent event) {
+        if (event.getClickCount() != 2) {
+            return;
+        }
+        if (treeView.getSelectionModel().getSelectedItem() == null) {
+            return;
+        }
+        TreeItem<String> item = treeView.getSelectionModel().getSelectedItem();
+        if (!item.isLeaf()) {
+            return;
+        }
+        try {
+            // Escape special regex characters
+            pattern = Pattern.compile(textField.getText().replaceAll("([<(\\[{\\\\^\\-=$!|\\]})?*+.>])", "\\\\$1"));
+            addFileToTextArea(path + pathFor(item), textArea);
+            highlight(textArea, pattern);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -121,33 +123,24 @@ public class Controller {
 
     @FXML
     protected void nextMatch() {
-        Window owner = textField.getScene().getWindow();
-        if (matches.isEmpty()) {
-            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выберите файл!");
-            return;
-        }
-        highlightIfSearchWordChanged(textField.getText());
-        Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, Direction.NEXT, textArea.getCaretPosition());
-        if (selectionBounds.isEqual()) {
-            selectionBounds = getSelectionBounds(matches, Direction.NEXT, -1);
-        }
-        textArea.selectRange(selectionBounds.getStart(), selectionBounds.getEnd());
-        textArea.requestFollowCaret();
+        getMatch(Direction.NEXT);
     }
 
     @FXML
     protected void previousMatch() {
-        Window owner = textField.getScene().getWindow();
+        getMatch(Direction.PREV);
+    }
+
+    private void getMatch(Direction direction) {
         if (matches.isEmpty()) {
-            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
+            AlertHelper.showAlert(Alert.AlertType.ERROR, textField.getScene().getWindow(), "Ошибка!",
                     "Выберите файл!");
             return;
         }
-        highlightIfSearchWordChanged(textField.getText());
-        Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, Direction.PREV, textArea.getCaretPosition());
+        Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, direction, textArea.getCaretPosition());
+        int caretPosition = direction == Direction.NEXT ? -1 : textArea.getLength() + 1;
         if (selectionBounds.isEqual()) {
-            selectionBounds = getSelectionBounds(matches, Direction.PREV, textArea.getLength() + 1);
+            selectionBounds = getSelectionBounds(matches, direction, caretPosition);
         }
         textArea.selectRange(selectionBounds.getStart(), selectionBounds.getEnd());
         textArea.requestFollowCaret();
@@ -170,13 +163,19 @@ public class Controller {
             extension = extensionField.getText();
         }
         treeView.setRoot(null);
-        textArea.deleteText(0, textArea.getLength());
+        textArea.clear();
         path = folderField.getText();
         pattern = Pattern.compile(textField.getText());
         computeSearchingIn(path, extension, textField.getText());
     }
 
-    private void addFileToTextArea(RandomAccessFile file, StyleClassedTextArea textArea) throws IOException {
+    private void addFileToTextArea(String path, StyleClassedTextArea textArea) throws IOException {
+        textArea.clear();
+        textArea.appendText(getTextFromFile(path));
+    }
+
+    private String getTextFromFile(String path) throws IOException {
+        RandomAccessFile file = new RandomAccessFile(path, "r");
         FileChannel fc = file.getChannel();
         ByteBuffer buf = ByteBuffer.allocate(1024);
         StringBuilder sb = new StringBuilder();
@@ -185,8 +184,8 @@ public class Controller {
             sb.append(Charset.defaultCharset().decode(buf));
             buf.clear();
         }
-        textArea.appendText(sb.toString());
         fc.close();
+        return sb.toString();
     }
 
     private void highlight(StyleClassedTextArea textArea, Pattern pattern) {
@@ -204,15 +203,6 @@ public class Controller {
         executor.execute(highlighter);
     }
 
-    private void highlightIfSearchWordChanged(String text) {
-        // add backslashes to all occurrences of special characters in search word to make them regular characters
-        patternText = text.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
-        if (!pattern.toString().equals(patternText)) {
-            pattern = Pattern.compile(patternText);
-            highlight(textArea, pattern);
-        }
-    }
-
     private Pair<Integer, Integer> getSelectionBounds(LinkedList<Pair<Integer, Integer>> matches, Direction direction, int caretPos) {
         Iterator<Pair<Integer,Integer>> iterator = direction.equals(Direction.NEXT) ?  matches.iterator() : matches.descendingIterator();
         BiPredicate<Pair<Integer, Integer>, Integer> predicate = direction.equals(Direction.NEXT)
@@ -220,7 +210,7 @@ public class Controller {
                                                                  : (range, position) -> range.getEnd() < position;
         while (iterator.hasNext()) {
             Pair<Integer, Integer> matchRange = iterator.next();
-            if (predicate.test(matchRange, caretPos)) return matchRange;
+            if (predicate.test(matchRange, caretPos)) { return matchRange; }
         }
         return new Pair<>(0, 0);
     }

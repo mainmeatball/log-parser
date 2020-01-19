@@ -43,11 +43,7 @@ public class Highlighter extends Task<HighlighterResult> {
                 end = ms + pattern.toString().length();
             }
         }
-        if (count == 0) {
-            spansBuilder.add(Collections.singleton("white"), text.length());
-//            return new HighlighterResult(spansBuilder.create(), new Pair<>(start, end), 0);
-        }
-        spansBuilder.add(Collections.emptyList(), text.length() - lastKwEnd);
+        spansBuilder.add(Collections.singleton("white"), text.length() - lastKwEnd);
         return new HighlighterResult(spansBuilder.create(), matches, new Pair<>(start, end), count);
     }
 }
