@@ -208,26 +208,26 @@ public class Controller {
         }
     }
 
-    private boolean foundIn(Direction direction, int from) {
+    private boolean foundIn(Direction direction, int caretPos) {
         boolean found = false;
         Iterator<Pair<Integer,Integer>> iterator = direction.equals(Direction.NEXT) ?  matches.iterator() : matches.descendingIterator();
-        while (iterator.hasNext()) {
+        iterator: while (iterator.hasNext()) {
             Pair<Integer, Integer> matchRange = iterator.next();
             switch (direction) {
                 case NEXT:
-                    if (matchRange.getEnd() > from) {
+                    if (matchRange.getEnd() > caretPos) {
                         textArea.selectRange(matchRange.getStart(), matchRange.getEnd());
                         textArea.requestFollowCaret();
                         found = true;
-                        break;
+                        break iterator;
                     }
                     break;
                 case PREV:
-                    if (matchRange.getEnd() < from) {
+                    if (matchRange.getEnd() < caretPos) {
                         textArea.selectRange(matchRange.getStart(), matchRange.getEnd());
                         textArea.requestFollowCaret();
                         found = true;
-                        break;
+                        break iterator;
                     }
                     break;
             }
