@@ -1,14 +1,14 @@
 package sample;
 
+import javafx.concurrent.Task;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Highlighter implements Callable<HighlighterResult> {
+public class Highlighter extends Task<HighlighterResult> {
     String text;
     Pattern pattern;
     Collection<Pair<Integer,Integer>> matches;

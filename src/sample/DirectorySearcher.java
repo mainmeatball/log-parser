@@ -1,5 +1,6 @@
 package sample;
 
+import javafx.concurrent.Task;
 import javafx.scene.control.TreeItem;
 
 import java.io.BufferedReader;
@@ -15,7 +16,7 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class DirectorySearcher implements Callable<TreeItem<String>> {
+public class DirectorySearcher extends Task<TreeItem<String>> {
     private String path;
     private String extension;
     private String searchInput;
@@ -33,7 +34,7 @@ public class DirectorySearcher implements Callable<TreeItem<String>> {
 
     private TreeItem<String> search() throws IOException, NoSuchExtensionFileException {
         Stream<Path> walk = Files.walk(Paths.get(path));
-        // find all files which end with extension and put them into list
+//         find all files which end with extension and put them into list
         List<String> result = walk.map(Path::toString)
                 .filter(f -> f.endsWith("." + extension))
                 .map(s -> s.substring(path.length() + 1))
@@ -43,20 +44,19 @@ public class DirectorySearcher implements Callable<TreeItem<String>> {
         if (result.isEmpty()) {
             throw new NoSuchExtensionFileException();
         }
-        TreeItem<String> root;
-        if ((root = createDirectoryTreeFrom(result, searchInput)).getChildren().isEmpty()) {
+        TreeItem<String> root = createDirectoryTreeFrom(result, searchInput);
+        if (root.getChildren().isEmpty()) {
             throw new NoSuchFileException(path);
         }
         return root;
     }
 
         private TreeItem<String> createDirectoryTreeFrom(Collection<String> collection, String searchInput) throws IOException {
+
             // loop through files list
             TreeItem<String> root = new TreeItem<>(path.substring(path.lastIndexOf("/")));
             root.setExpanded(true);
             for (String p : collection) {
-                // read a file into byte array (does not work with big files)
-                //byte[] fileContent = Files.readAllBytes(Paths.get(path + "/" + p));
 
                 // read a file using buffer (works with big files)
                 FileReader file = new FileReader(path + "/" + p);
@@ -67,6 +67,7 @@ public class DirectorySearcher implements Callable<TreeItem<String>> {
                         String[] filePathArray = p.split("/");
                         TreeItem<String> tempRoot = root;
                         for (String fileName : filePathArray) {
+
                             // check if there is a file with the same name in the folder
                             TreeItem<String> findNode = findItemIn(tempRoot, fileName);
                             if (findNode != null) {
@@ -81,6 +82,8 @@ public class DirectorySearcher implements Callable<TreeItem<String>> {
                         break;
                     }
                 }
+                file.close();
+                reader.close();
             }
             return root;
         }
