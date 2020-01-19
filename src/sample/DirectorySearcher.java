@@ -6,6 +6,10 @@ import javafx.scene.control.TreeItem;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -33,7 +37,6 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
 
     private TreeItem<String> search() throws IOException, NoSuchExtensionFileException {
         Stream<Path> walk = Files.walk(Paths.get(path));
-//         find all files which end with extension and put them into list
         List<String> result = walk.map(Path::toString)
                 .filter(f -> f.endsWith("." + extension))
                 .map(s -> s.substring(path.length() + 1))
@@ -51,22 +54,19 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
     }
 
         private TreeItem<String> createDirectoryTreeFrom(Collection<String> collection, String searchInput) throws IOException {
-
             // loop through files list
             TreeItem<String> root = new TreeItem<>(path.substring(path.lastIndexOf("/") + 1));
             root.setExpanded(true);
             for (String p : collection) {
-
-                // read a file using buffer (works with big files)
-                FileReader file = new FileReader(path + "/" + p);
-                BufferedReader reader = new BufferedReader(file);
-                String line;
-                while((line = reader.readLine()) != null) {
-                    if((line.contains(searchInput))) {
+                RandomAccessFile file = new RandomAccessFile(path + "/" + p, "r");
+                FileChannel fc = file.getChannel();
+                ByteBuffer buf = ByteBuffer.allocate(4096);
+                while (fc.read(buf) != -1) {
+                    buf.flip();
+                    if (KMPMatch.indexOf(buf.array(), searchInput.getBytes()) != -1) {
                         String[] filePathArray = p.split("/");
                         TreeItem<String> tempRoot = root;
                         for (String fileName : filePathArray) {
-
                             // check if there is a file with the same name in the folder
                             TreeItem<String> findNode = findItemIn(tempRoot, fileName);
                             if (findNode != null) {
@@ -80,9 +80,10 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
                         }
                         break;
                     }
+                    buf.clear();
                 }
+                fc.close();
                 file.close();
-                reader.close();
             }
             return root;
         }
@@ -95,9 +96,9 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
             return null;
         }
         for (TreeItem<String> child : container.getChildren()) {
-            TreeItem<String> s = findItemIn(child, predicate);
-            if (s != null) {
-                return s;
+            TreeItem<String> node = findItemIn(child, predicate);
+            if (node != null) {
+                return node;
             }
         }
         return null;

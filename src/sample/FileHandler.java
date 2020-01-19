@@ -1,5 +1,6 @@
 package sample;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -7,14 +8,13 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 
 public class FileHandler {
-    String path;
+    private RandomAccessFile file;
 
-    public FileHandler(String path) {
-        this.path = path;
+    public FileHandler(String path) throws FileNotFoundException {
+        this.file = new RandomAccessFile(path, "r");
     }
 
     public String getText() throws IOException {
-        RandomAccessFile file = new RandomAccessFile(path, "r");
         FileChannel fc = file.getChannel();
         ByteBuffer buf = ByteBuffer.allocate(1024);
         StringBuilder sb = new StringBuilder();
@@ -24,6 +24,7 @@ public class FileHandler {
             buf.clear();
         }
         fc.close();
+        file.close();
         return sb.toString();
     }
 }
