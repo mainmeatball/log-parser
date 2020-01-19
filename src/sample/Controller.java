@@ -25,11 +25,9 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -87,7 +85,7 @@ public class Controller {
             if (textArea.getText().isEmpty()) return;
             try {
                 pattern = Pattern.compile(newValue);
-                applyHighlighting(computeHighlightingAsync());
+                applyHighlighting(computeHighlightingAsync(textArea.getText()));
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
@@ -106,7 +104,7 @@ public class Controller {
                     patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
                     pattern = Pattern.compile(patternText);
                     addFileToTextArea(file, textArea);
-                    applyHighlighting(computeHighlightingAsync());
+                    applyHighlighting(computeHighlightingAsync(textArea.getText()));
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -139,18 +137,15 @@ public class Controller {
     }
 
     //find and highlight all matches
-    public HighlighterResult computeHighlightingAsync() throws InterruptedException, ExecutionException {
-        Highlighter highlighter = new Highlighter(textArea.getText(), pattern, matches);
+    private HighlighterResult computeHighlightingAsync(String text) throws InterruptedException, ExecutionException {
+        Highlighter highlighter = new Highlighter(text, pattern, matches);
         Future<HighlighterResult> task = executor.submit(highlighter);
-        while(!task.isDone()) {
-            Thread.sleep(1);
-        }
         return task.get();
     }
 
     @FXML
     protected void nextMatch() {
-        highlightMatchesIn(textArea.getText());
+        highlightMatchesFor(textArea.getText());
         Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, Direction.NEXT, textArea.getCaretPosition());
         if (selectionBounds.isEqual()) {
             selectionBounds = getSelectionBounds(matches, Direction.NEXT, -1);
@@ -161,7 +156,7 @@ public class Controller {
 
     @FXML
     protected void previousMatch() {
-        highlightMatchesIn(textArea.getText());
+        highlightMatchesFor(textArea.getText());
         Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, Direction.PREV, textArea.getCaretPosition());
         if (selectionBounds.isEqual()) {
             selectionBounds = getSelectionBounds(matches, Direction.PREV, -1);
@@ -170,33 +165,33 @@ public class Controller {
         textArea.requestFollowCaret();
     }
 
-    private void highlightMatchesIn(String s) {
+    private void highlightMatchesFor(String entry) {
         Window owner = textField.getScene().getWindow();
         if (matches.isEmpty()) {
             AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
                     "Выберите файл!");
             return;
         }
-        patternText = textField.getText();
-        patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
+        // add backslashes to all occurrences of special characters in search word to make them regular characters
+        patternText = textField.getText().replaceAll("([^0-9a-zA-Z])", "\\\\$1");
         if (!pattern.toString().equals(patternText)) {
             pattern = Pattern.compile(patternText);
             try {
-                applyHighlighting(computeHighlightingAsync());
+                applyHighlighting(computeHighlightingAsync(entry));
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private Pair<Integer, Integer> getSelectionBounds(LinkedList<Pair<Integer, Integer>> matches, Direction direction, int caretPosition) {
+    private Pair<Integer, Integer> getSelectionBounds(LinkedList<Pair<Integer, Integer>> matches, Direction direction, int caretPos) {
         Iterator<Pair<Integer,Integer>> iterator = direction.equals(Direction.NEXT) ?  matches.iterator() : matches.descendingIterator();
-        BiPredicate<Pair<Integer, Integer>, Integer> predicate = direction.equals(Direction.NEXT) ?
-                                                                (matchRange, caretPos) -> matchRange.getEnd() > caretPos :
-                                                                (matchRange, caretPos) -> matchRange.getEnd() < caretPos;
+        BiPredicate<Pair<Integer, Integer>, Integer> predicate = direction.equals(Direction.NEXT)
+                                                                 ? (range, position) -> range.getEnd() > position
+                                                                 : (range, position) -> range.getEnd() < position;
         while (iterator.hasNext()) {
             Pair<Integer, Integer> matchRange = iterator.next();
-            if (predicate.test(matchRange, caretPosition)) return matchRange;
+            if (predicate.test(matchRange, caretPos)) return matchRange;
         }
         return new Pair<>(0, 0);
     }
@@ -213,7 +208,7 @@ public class Controller {
     }
 
     @FXML
-    protected void submit() {
+    protected void submit() throws ExecutionException, InterruptedException {
         Window owner = textField.getScene().getWindow();
         String text = textField.getText();
         String userPath = folderField.getText();
@@ -236,103 +231,11 @@ public class Controller {
             extension = userExtension;
         }
         pattern = Pattern.compile(text);
-        Task<Void> task = new Task<Void>() {
-            @Override
-            protected Void call() {
-                try (Stream<Path> walk = Files.walk(Paths.get(path))) {
-                    String finalPath = path;
-
-                    // find all files which end with extension and put them into list
-                    List<String> result = walk.map(Path::toString)
-                            .filter(f -> f.endsWith("." + extension))
-                            .map(s -> s.substring(finalPath.length() + 1))
-                            .collect(Collectors.toList());
-
-                    if (result.isEmpty()) {
-                        Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                                "Файлов с данным расширением в выбранной директории не найдено!"));
-                        return null;
-                    }
-
-                    // add tree root folder
-                    String[] rootFolder = path.split("/");
-                    TreeItem<String> root = new TreeItem<>(rootFolder[rootFolder.length - 1]);
-                    root.setExpanded(true);
-
-                    boolean noChildren = true;
-
-                    // loop through files list
-                    for (String p : result) {
-                        // read a file into byte array (does not work with big files)
-                        //byte[] fileContent = Files.readAllBytes(Paths.get(path + "/" + p));
-
-                        // read a file using buffer (works with big files)
-                        FileReader file = new FileReader(path + "/" + p);
-                        BufferedReader reader = new BufferedReader(file);
-                        String line;
-                        while((line = reader.readLine()) != null) {
-                            if((line.contains(text))) {
-                                String[] s = p.split("/");
-                                TreeItem<String> tempRoot = root;
-                                for (String f : s) {
-                                    // check if there is a file with the same name in the folder
-                                    TreeItem<String> findNode = findItemIn(tempRoot, f);
-                                    if (findNode != null) {
-                                        tempRoot = findNode;
-                                    } else {
-                                        TreeItem<String> node = new TreeItem<>(f);
-                                        tempRoot.getChildren().add(node);
-                                        tempRoot.setExpanded(true);
-                                        tempRoot = node;
-                                    }
-                                }
-                                System.out.println("found pattern in " + path + "/" + p);
-                                noChildren = false;
-                                break;
-                            }
-                        }
-
-
-                        //
-
-
-//                        if (KMPMatch.indexOf(fileContent, text.getBytes()) != -1) {
-//
-//                            // split path by slashes and add as children
-//                            String[] s = p.split("/");
-//                            TreeItem<String> tempRoot = root;
-//                            for (String f : s) {
-//                                // check if there is a file with the same name in the folder
-//                                TreeItem<String> findNode = getTreeViewItem(tempRoot, f);
-//                                if (findNode != null) {
-//                                    tempRoot = findNode;
-//                                } else {
-//                                    TreeItem<String> node = new TreeItem<>(f);
-//                                    tempRoot.getChildren().add(node);
-//                                    tempRoot.setExpanded(true);
-//                                    tempRoot = node;
-//                                }
-//                            }
-//                            noChildren = false;
-//                        }
-                    }
-                    if (noChildren) {
-                        Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                                "Искомого текста не найдено в файлах указанной директории."));
-                        return null;
-                    }
-                    initializeTreeIcons(root);
-                    Platform.runLater(() -> treeView.setRoot(root));
-                } catch (NoSuchFileException e) {
-                    Platform.runLater(() -> AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                            "Выбранной папки не существует!"));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                return null;
-            }
-        };
-        executor.execute(task);
+        DirectorySearcher dirSearcher = new DirectorySearcher(path, extension, text);
+        Future<TreeItem<String>> task = executor.submit(dirSearcher);
+        TreeItem<String> root = task.get();
+        treeView.setRoot(root);
+        initializeTreeIcons(root);
     }
 
     @FXML
@@ -342,18 +245,6 @@ public class Controller {
         if (selectedDirectory != null) {
             folderField.setText(selectedDirectory.getAbsolutePath());
         }
-    }
-
-    public TreeItem<String> findItemIn(TreeItem<String> container, String predicate) {
-        if (container != null && container.getValue().equals(predicate))
-            return container;
-        if (container == null) return null;
-        for (TreeItem<String> child : container.getChildren()){
-            TreeItem<String> s = findItemIn(child, predicate);
-            if (s != null)
-                return s;
-        }
-        return null;
     }
 
     public String pathFor(TreeItem<String> item) {
