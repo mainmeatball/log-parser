@@ -91,32 +91,6 @@ public class Controller {
                 e.printStackTrace();
             }
         });
-
-//        //set event when selecting file with double click
-//        treeView.setOnMouseClicked(mouseEvent -> {
-//            if(mouseEvent.getClickCount() == 2) {
-//                if (treeView.getSelectionModel().getSelectedItem() != null) {
-//                    TreeItem<String> item = treeView.getSelectionModel().getSelectedItem();
-//                    if (item.isLeaf()) {
-//                        try {
-//                            RandomAccessFile file = new RandomAccessFile(path + pathFor(item), "r");
-//
-//                            // adding text from file to textArea
-//                            patternText = textField.getText();
-//                            patternText = patternText.replaceAll("([^0-9a-zA-Z])", "\\\\$1");
-//                            pattern = Pattern.compile(patternText);
-//                            addFileToTextArea(file, textArea);
-//                            applyHighlighting(computeHighlightingAsync());
-//
-////                            String s = new String(Files.readAllBytes(Paths.get(path + getFullPath(item))));
-////                            textArea.replaceText(s);
-//                        } catch (Exception e) {
-//                            e.printStackTrace();
-//                        }
-//                    }
-//                }
-//            }
-//        });
     }
 
     @FXML
@@ -208,31 +182,25 @@ public class Controller {
         }
     }
 
-    private boolean foundIn(Direction direction, int caretPos) {
-        boolean found = false;
+    // use .selectRange after usage of this method
+    private Pair<Integer, Integer> getSelectionBounds(LinkedList<Pair<Integer, Integer>> matches, Direction direction, int caretPos) {
         Iterator<Pair<Integer,Integer>> iterator = direction.equals(Direction.NEXT) ?  matches.iterator() : matches.descendingIterator();
-        iterator: while (iterator.hasNext()) {
+        while (iterator.hasNext()) {
             Pair<Integer, Integer> matchRange = iterator.next();
             switch (direction) {
                 case NEXT:
                     if (matchRange.getEnd() > caretPos) {
-                        textArea.selectRange(matchRange.getStart(), matchRange.getEnd());
-                        textArea.requestFollowCaret();
-                        found = true;
-                        break iterator;
+                        return new Pair<>(matchRange.getStart(), matchRange.getEnd());
                     }
                     break;
                 case PREV:
                     if (matchRange.getEnd() < caretPos) {
-                        textArea.selectRange(matchRange.getStart(), matchRange.getEnd());
-                        textArea.requestFollowCaret();
-                        found = true;
-                        break iterator;
+                        return new Pair<>(matchRange.getStart(), matchRange.getEnd());
                     }
                     break;
             }
         }
-        return found;
+        return new Pair<>(0, 0);
     }
 
     @FXML
