@@ -1,4 +1,4 @@
-package sample;
+package sample.exceptions;
 
 import java.nio.file.NoSuchFileException;
 

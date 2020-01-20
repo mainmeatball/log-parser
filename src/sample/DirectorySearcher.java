@@ -2,14 +2,13 @@ package sample;
 
 import javafx.concurrent.Task;
 import javafx.scene.control.TreeItem;
+import sample.exceptions.NoSuchDirectoryException;
+import sample.exceptions.NoSuchExtensionFileException;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;

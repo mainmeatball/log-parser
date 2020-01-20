@@ -15,6 +15,8 @@ import javafx.stage.Window;
 import javafx.util.Duration;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.StyleClassedTextArea;
+import sample.exceptions.NoSuchDirectoryException;
+import sample.exceptions.NoSuchExtensionFileException;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
@@ -63,8 +65,6 @@ public class Controller {
 
     @FXML
     public void initialize() {
-        folderField.setText("/Users/Meatball/Desktop/test");
-        textField.setText("hello");
         textArea.setEditable(false);
         textArea.setWrapText(true);
         GridPane.setVgrow(vsPane, Priority.ALWAYS);
@@ -222,7 +222,7 @@ public class Controller {
             if (directorySearcher.getException() instanceof NoSuchExtensionFileException) {
                 AlertHelper.showAlert(Alert.AlertType.ERROR, textField.getScene().getWindow(), "Ошибка!",
                         "Файлов с указанным расширением в выбранной директории не найдено.");
-            } else if (directorySearcher.getException() instanceof  NoSuchDirectoryException) {
+            } else if (directorySearcher.getException() instanceof NoSuchDirectoryException) {
                 AlertHelper.showAlert(Alert.AlertType.ERROR, textField.getScene().getWindow(), "Ошибка!",
                         "Выбранной директории не существует.");
             } else if (directorySearcher.getException() instanceof NoSuchFileException) {
