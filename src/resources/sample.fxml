@@ -118,7 +118,7 @@
     >
     </TreeView>
 
-    <!--  Add text area here in the code column = 1 and row = 3  -->
+    <!-- Add VirtualizedScrollPane with StyledClassTextArea in code here columnIndex=1, rowIndex=3  -->
 
     <!--  Add buttons here < > and select all  -->
     <HBox GridPane.columnIndex="1" GridPane.rowIndex="4"

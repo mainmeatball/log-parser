@@ -39,8 +39,8 @@ public class Controller {
     @FXML
     private TreeView<String> treeView;
 
-    StyleClassedTextArea textArea = new StyleClassedTextArea();
-    VirtualizedScrollPane<StyleClassedTextArea> vsPane = new VirtualizedScrollPane<>(textArea);
+    private StyleClassedTextArea textArea = new StyleClassedTextArea();
+    private VirtualizedScrollPane<StyleClassedTextArea> vsPane = new VirtualizedScrollPane<>(textArea);
 
     private Pattern pattern;
     private String extension = "log";
@@ -78,7 +78,7 @@ public class Controller {
             pause.setOnFinished(event -> {
                 if (textArea.getText().isEmpty()) return;
                 pattern = Pattern.compile(newValue.replaceAll(SPECIAL_REGEX_CHARS, "\\\\$1"));
-                highlight(textArea, pattern, newValue.length());
+                highlight(textArea, pattern);
             });
             pause.playFromStart();
         });
@@ -108,7 +108,7 @@ public class Controller {
             // Escape special regex characters
             pattern = Pattern.compile(textField.getText().replaceAll(SPECIAL_REGEX_CHARS, "\\\\$1"));
             addFileToTextArea(folderField.getText() + pathFor(item), textArea);
-            highlight(textArea, pattern, textField.getText().length());
+            highlight(textArea, pattern);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -187,8 +187,8 @@ public class Controller {
         textArea.appendText(fileHandler.getText());
     }
 
-    private void highlight(StyleClassedTextArea textArea, Pattern pattern, int length) {
-        Highlighter highlighter = new Highlighter(textArea.getText(), pattern, length);
+    private void highlight(StyleClassedTextArea textArea, Pattern pattern) {
+        Highlighter highlighter = new Highlighter(textArea.getText(), pattern);
         highlighter.setOnSucceeded(event -> {
             HighlighterResult highlighterResult = highlighter.getValue();
             textArea.setStyleSpans(0, highlighterResult.getStyleSpans());

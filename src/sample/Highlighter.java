@@ -12,12 +12,10 @@ import java.util.regex.Pattern;
 public class Highlighter extends Task<HighlighterResult> {
     String text;
     Pattern pattern;
-    int length;
 
-    public Highlighter(String text, Pattern pattern, int length) {
+    public Highlighter(String text, Pattern pattern) {
         this.text = text;
         this.pattern = pattern;
-        this.length = length;
     }
 
     @Override
@@ -42,7 +40,7 @@ public class Highlighter extends Task<HighlighterResult> {
             count++;
             if (count == 1) {
                 start = ms;
-                end = ms + length;
+                end = me;
             }
         }
         spansBuilder.add(Collections.singleton("white"), text.length() - lastKwEnd);
