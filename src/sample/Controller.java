@@ -41,13 +41,23 @@ public class Controller {
     @FXML
     private TreeView<String> treeView;
 
+    @FXML
+    private Button submitButton;
+
+    @FXML
+    private Button selectAllButton;
+
+    @FXML
+    private Button prevMatchButton;
+
+    @FXML
+    private Button nextMatchButton;
+
     private StyleClassedTextArea textArea = new StyleClassedTextArea();
     private VirtualizedScrollPane<StyleClassedTextArea> vsPane = new VirtualizedScrollPane<>(textArea);
 
     private Pattern pattern;
     private String extension = "log";
-
-    private final String SPECIAL_REGEX_CHARS = "([<(\\[{\\\\^\\-=$!|\\]})?*+.>])";
 
     private LinkedList<Pair<Integer,Integer>> matches = new LinkedList<>();
 
@@ -65,8 +75,24 @@ public class Controller {
 
     @FXML
     public void initialize() {
+        textArea.textProperty().addListener((observable, oldValue, newValue) -> {
+            if (textArea.getLength() == 0) {
+                selectAllButton.setDisable(true);
+                prevMatchButton.setDisable(true);
+                nextMatchButton.setDisable(true);
+            } else {
+                selectAllButton.setDisable(false);
+                prevMatchButton.setDisable(false);
+                nextMatchButton.setDisable(false);
+            }
+        });
+
         textArea.setEditable(false);
         textArea.setWrapText(true);
+        selectAllButton.setDisable(true);
+        prevMatchButton.setDisable(true);
+        nextMatchButton.setDisable(true);
+        submitButton.setDisable(true);
         GridPane.setVgrow(vsPane, Priority.ALWAYS);
         GridPane.setHgrow(vsPane, Priority.ALWAYS);
         textArea.setPadding(new Insets(8));
@@ -76,15 +102,19 @@ public class Controller {
         PauseTransition pause = new PauseTransition(Duration.millis(100));
         textField.textProperty().addListener((observable, oldValue, newValue) -> {
             pause.setOnFinished(event -> {
-                if (textArea.getText().isEmpty()) return;
-                pattern = Pattern.compile(newValue.replaceAll(SPECIAL_REGEX_CHARS, "\\\\$1"));
+                if (textField.getLength() == 0) {
+                    submitButton.setDisable(true);
+                    return;
+                }
+                submitButton.setDisable(false);
+                pattern = Pattern.compile(Pattern.quote(newValue));
                 highlight(textArea, pattern);
             });
             pause.playFromStart();
         });
 
         extensionField.textProperty().addListener((observable, oldValue, newValue) -> {
-            if (textArea.getText().isEmpty()) {
+            if (extensionField.getLength() == 0) {
                 extension = "log";
             } else {
                 extension = newValue;
@@ -106,7 +136,7 @@ public class Controller {
         }
         try {
             // Escape special regex characters
-            pattern = Pattern.compile(textField.getText().replaceAll(SPECIAL_REGEX_CHARS, "\\\\$1"));
+            pattern = Pattern.compile(Pattern.quote(textField.getText()));
             addFileToTextArea(folderField.getText() + pathFor(item), textArea);
             highlight(textArea, pattern);
         } catch (Exception e) {
@@ -135,14 +165,10 @@ public class Controller {
     }
 
     @FXML
-    protected void nextMatch() {
-        getMatch(Direction.NEXT);
-    }
+    protected void nextMatch() { getMatch(Direction.NEXT); }
 
     @FXML
-    protected void previousMatch() {
-        getMatch(Direction.PREV);
-    }
+    protected void previousMatch() { getMatch(Direction.PREV); }
 
     private void getMatch(Direction direction) {
         if (matches.isEmpty()) {
@@ -177,7 +203,7 @@ public class Controller {
         }
         treeView.setRoot(null);
         textArea.clear();
-        pattern = Pattern.compile(textField.getText());
+        pattern = Pattern.compile(Pattern.quote(textField.getText()));
         computeSearchingIn(folderField.getText(), extension, textField.getText());
     }
 
@@ -230,7 +256,7 @@ public class Controller {
                         "Файлов с данным искомым словом в выбранной директории не найдено.");
             } else {
                 AlertHelper.showAlert(Alert.AlertType.ERROR, textField.getScene().getWindow(), "Ошибка!",
-                        "Произошла ошибка!");
+                        Arrays.toString(directorySearcher.getException().getStackTrace()));
             }
         });
 
@@ -246,7 +272,7 @@ public class Controller {
     public String pathFor(TreeItem<String> item) {
         StringBuilder fullPath = new StringBuilder();
         while (item.getParent() != null) {
-            fullPath.insert(0, "/" + item.getValue());
+            fullPath.insert(0,  File.separator + item.getValue());
             item = item.getParent();
         }
         return fullPath.toString();

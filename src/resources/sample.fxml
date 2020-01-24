@@ -87,7 +87,8 @@
             </TextField>
 
             <!-- Add Submit Button -->
-            <Button text="Искать"
+            <Button fx:id="submitButton"
+                    text="Искать"
                     prefWidth="80"
                     minWidth="80"
                     maxWidth="80"
@@ -124,7 +125,8 @@
     <HBox GridPane.columnIndex="1" GridPane.rowIndex="4"
           alignment="CENTER">
         <!--  Add select all button  -->
-        <Button text="Выбрать все"
+        <Button fx:id="selectAllButton"
+                text="Выбрать все"
                 prefWidth="100" prefHeight="30" defaultButton="true"
                 onAction="#selectAll">
             <HBox.margin>
@@ -132,7 +134,8 @@
             </HBox.margin>
         </Button>
         <!--  Find prev highlight match button  -->
-        <Button text="Пред."
+        <Button fx:id="prevMatchButton"
+                text="Пред."
                 prefWidth="60" prefHeight="30" defaultButton="true"
                 onAction="#previousMatch"
                 GridPane.hgrow="NEVER" GridPane.vgrow="NEVER">
@@ -141,7 +144,8 @@
             </HBox.margin>
         </Button>
         <!--  Find next highlight match button  -->
-        <Button text="След."
+        <Button fx:id="nextMatchButton"
+                text="След."
                 prefWidth="60" prefHeight="30" defaultButton="true"
                 onAction="#nextMatch">
         </Button>
