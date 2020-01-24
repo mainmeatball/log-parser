@@ -5,6 +5,7 @@ import javafx.scene.control.TreeItem;
 import sample.exceptions.NoSuchDirectoryException;
 import sample.exceptions.NoSuchExtensionFileException;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -15,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -58,20 +60,20 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
     }
 
         private TreeItem<String> createDirectoryTreeFrom(Collection<String> collection, String searchInput) throws IOException {
-            // loop through files list
-            TreeItem<String> root = new TreeItem<>(path.substring(path.lastIndexOf("/") + 1));
+            // Loop through files list
+            TreeItem<String> root = new TreeItem<>(path.substring(path.lastIndexOf(File.separator) + 1));
             root.setExpanded(true);
             for (String p : collection) {
-                RandomAccessFile file = new RandomAccessFile(path + "/" + p, "r");
+                RandomAccessFile file = new RandomAccessFile(path + File.separator + p, "r");
                 FileChannel fc = file.getChannel();
                 ByteBuffer buf = ByteBuffer.allocate(4096);
                 while (fc.read(buf) != -1) {
                     buf.flip();
                     if (KMPMatch.indexOf(buf.array(), searchInput.getBytes()) != -1) {
-                        String[] filePathArray = p.split("/");
+                        String[] filePathArray = p.split(Pattern.quote(File.separator));
                         TreeItem<String> tempRoot = root;
                         for (String fileName : filePathArray) {
-                            // check if there is a file with the same name in the folder
+                            // Сheck if there is a file with the same name in the folder recursive way (change)
                             TreeItem<String> findNode = findItemIn(tempRoot, fileName);
                             if (findNode != null) {
                                 tempRoot = findNode;
@@ -100,9 +102,8 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
             return null;
         }
         for (TreeItem<String> child : container.getChildren()) {
-            TreeItem<String> node = findItemIn(child, predicate);
-            if (node != null) {
-                return node;
+            if (child.getValue().equals(predicate)) {
+                return container;
             }
         }
         return null;
