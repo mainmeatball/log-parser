@@ -75,24 +75,9 @@ public class Controller {
 
     @FXML
     public void initialize() {
-        textArea.textProperty().addListener((observable, oldValue, newValue) -> {
-            if (textArea.getLength() == 0) {
-                selectAllButton.setDisable(true);
-                prevMatchButton.setDisable(true);
-                nextMatchButton.setDisable(true);
-            } else {
-                selectAllButton.setDisable(false);
-                prevMatchButton.setDisable(false);
-                nextMatchButton.setDisable(false);
-            }
-        });
-
         textArea.setEditable(false);
         textArea.setWrapText(true);
-        selectAllButton.setDisable(true);
-        prevMatchButton.setDisable(true);
-        nextMatchButton.setDisable(true);
-        submitButton.setDisable(true);
+        disable(selectAllButton, prevMatchButton, nextMatchButton, submitButton);
         GridPane.setVgrow(vsPane, Priority.ALWAYS);
         GridPane.setHgrow(vsPane, Priority.ALWAYS);
         textArea.setPadding(new Insets(8));
@@ -119,6 +104,14 @@ public class Controller {
             } else {
                 extension = newValue;
             }
+        });
+
+        textArea.textProperty().addListener((observable, oldValue, newValue) -> {
+            if (textArea.getLength() == 0) {
+                disable(selectAllButton, prevMatchButton, nextMatchButton);
+                return;
+            }
+            enable(selectAllButton, prevMatchButton, nextMatchButton);
         });
     }
 
@@ -205,6 +198,18 @@ public class Controller {
         textArea.clear();
         pattern = Pattern.compile(Pattern.quote(textField.getText()));
         computeSearchingIn(folderField.getText(), extension, textField.getText());
+    }
+
+    private void disable(Button... buttons) {
+        for (Button button : buttons) {
+            button.setDisable(true);
+        }
+    }
+
+    private void enable(Button... buttons) {
+        for (Button button : buttons) {
+            button.setDisable(false);
+        }
     }
 
     private void addFileToTextArea(String path, StyleClassedTextArea textArea) throws IOException {
