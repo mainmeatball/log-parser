@@ -164,11 +164,6 @@ public class Controller {
     protected void previousMatch() { getMatch(Direction.PREV); }
 
     private void getMatch(Direction direction) {
-        if (matches.isEmpty()) {
-            AlertHelper.showAlert(Alert.AlertType.ERROR, textField.getScene().getWindow(), "Ошибка!",
-                    "Выберите файл!");
-            return;
-        }
         Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, direction, textArea.getCaretPosition());
         int caretPosition = direction == Direction.NEXT ? -1 : textArea.getLength() + 1;
         if (selectionBounds.isEqual()) {
@@ -180,17 +175,6 @@ public class Controller {
 
     @FXML
     protected void submit() {
-        Window owner = textField.getScene().getWindow();
-        if (folderField.getText() == null || folderField.getText().trim().isEmpty()) {
-            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выберите папку!");
-            return;
-        }
-        if (textField.getText().isEmpty()) {
-            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выберите искомое слово!");
-            return;
-        }
         if (!extensionField.getText().isEmpty()) {
             extension = extensionField.getText();
         }
@@ -245,7 +229,7 @@ public class Controller {
         return new Pair<>(0, 0);
     }
 
-    //find and highlight all matches
+    // Find and highlight all matches
     private void computeSearchingIn(String path, String extension, String text) {
         DirectorySearcher directorySearcher = new DirectorySearcher(path, extension, text);
 
