@@ -198,8 +198,15 @@ public class Controller {
 
     private void addFileToTextArea(String path, StyleClassedTextArea textArea) throws IOException {
         textArea.clear();
-        FileHandler fileHandler = new FileHandler(path);
-        textArea.appendText(fileHandler.getText());
+        try (FileReader fileReader = new FileReader(path);
+             BufferedReader reader = new BufferedReader(fileReader)) {
+            char[] buf = new char[4096];
+            StringBuilder sb = new StringBuilder();
+            while ((reader.read(buf)) != -1) {
+                sb.append(buf);
+            }
+            textArea.appendText(sb.toString());
+        }
     }
 
     private void highlight(StyleClassedTextArea textArea, Pattern pattern) {
