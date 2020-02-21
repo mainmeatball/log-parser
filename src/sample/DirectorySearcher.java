@@ -69,11 +69,13 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
                 ByteBuffer buf = ByteBuffer.allocate(4096);
                 while (fc.read(buf) != -1) {
                     buf.flip();
+                    // If file has the searchInput string
                     if (KMPMatch.indexOf(buf.array(), searchInput.getBytes()) != -1) {
+                        // Split file path to create folders with each name
                         String[] filePathArray = p.split(Pattern.quote(File.separator));
                         TreeItem<String> tempRoot = root;
                         for (String fileName : filePathArray) {
-                            // Сheck if there is a file with the same name in the folder recursive way (change)
+                            // Find folder if this path has already been created, if no create new one
                             TreeItem<String> findNode = findItemIn(tempRoot, fileName);
                             if (findNode != null) {
                                 tempRoot = findNode;
@@ -103,7 +105,7 @@ public class DirectorySearcher extends Task<TreeItem<String>> {
         }
         for (TreeItem<String> child : container.getChildren()) {
             if (child.getValue().equals(predicate)) {
-                return container;
+                return child;
             }
         }
         return null;
