@@ -7,7 +7,7 @@ This is a log parser using [RichTextFX](https://github.com/FXMisc/RichTextFX) th
 This demo is build with with Maven 4.0.0 and Java 8.
 
 ## Usage
-Download the jar file and run it on your computer.
+Download the [JAR](https://github.com/mainmeatball/log-parser/releases/download/v1.0/ifuture.jar) file and run it on your computer.
 
 Follow few steps, then double-click on file and open it in a current tab.
 Or you can right-click on a file and open it in a new tab.
