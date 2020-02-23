@@ -112,7 +112,7 @@
 
     <!--  Add tree view for folders visualization  -->
     <TreeView fx:id="treeView"
-              GridPane.columnIndex="0" GridPane.rowIndex="3" GridPane.rowSpan="2"
+              GridPane.columnIndex="0" GridPane.rowIndex="3"
               GridPane.vgrow="ALWAYS"
               GridPane.hgrow="ALWAYS"
               onMouseClicked="#showFileAndHighlightMatches"
@@ -120,34 +120,10 @@
     </TreeView>
 
     <!-- Add VirtualizedScrollPane with StyledClassTextArea in code here columnIndex=1, rowIndex=3  -->
-
-    <!--  Add buttons here < > and select all  -->
-    <HBox GridPane.columnIndex="1" GridPane.rowIndex="4"
-          alignment="CENTER">
-        <!--  Add select all button  -->
-        <Button fx:id="selectAllButton"
-                text="Выбрать все"
-                prefWidth="100" prefHeight="30" defaultButton="true"
-                onAction="#selectAll">
-            <HBox.margin>
-                <Insets right="10"/>
-            </HBox.margin>
-        </Button>
-        <!--  Find prev highlight match button  -->
-        <Button fx:id="prevMatchButton"
-                text="Пред."
-                prefWidth="60" prefHeight="30" defaultButton="true"
-                onAction="#previousMatch"
-                GridPane.hgrow="NEVER" GridPane.vgrow="NEVER">
-            <HBox.margin>
-                <Insets right="10"/>
-            </HBox.margin>
-        </Button>
-        <!--  Find next highlight match button  -->
-        <Button fx:id="nextMatchButton"
-                text="След."
-                prefWidth="60" prefHeight="30" defaultButton="true"
-                onAction="#nextMatch">
-        </Button>
-    </HBox>
+    <TabPane fx:id="tabPane"
+             GridPane.columnIndex="1" GridPane.rowIndex="3"
+             GridPane.vgrow="ALWAYS"
+             GridPane.hgrow="ALWAYS"
+    >
+    </TabPane>
 </GridPane>
