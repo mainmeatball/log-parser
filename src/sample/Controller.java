@@ -2,19 +2,14 @@ package sample;
 
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
-import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.GridPane;
-import javafx.scene.layout.Priority;
 import javafx.stage.DirectoryChooser;
-import javafx.stage.Window;
 import javafx.util.Duration;
-import org.fxmisc.flowless.VirtualizedScrollPane;
-import org.fxmisc.richtext.StyleClassedTextArea;
 import sample.exceptions.NoSuchDirectoryException;
 import sample.exceptions.NoSuchExtensionFileException;
 
@@ -22,7 +17,6 @@ import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.function.BiPredicate;
 import java.util.regex.Pattern;
 
 public class Controller {
@@ -45,21 +39,13 @@ public class Controller {
     private Button submitButton;
 
     @FXML
-    private Button selectAllButton;
-
-    @FXML
-    private Button prevMatchButton;
-
-    @FXML
-    private Button nextMatchButton;
-
-    private StyleClassedTextArea textArea = new StyleClassedTextArea();
-    private VirtualizedScrollPane<StyleClassedTextArea> vsPane = new VirtualizedScrollPane<>(textArea);
+    private TabPane tabPane;
 
     private Pattern pattern;
     private String extension = "log";
 
-    private LinkedList<Pair<Integer,Integer>> matches = new LinkedList<>();
+    private final MenuItem menuItem = new MenuItem("Open in new tab");
+    private final ContextMenu contextMenu = new ContextMenu(menuItem);
 
     //16x16 png Images for treeView icons
     private final Image folderImage = new Image(
@@ -75,14 +61,8 @@ public class Controller {
 
     @FXML
     public void initialize() {
-        textArea.setEditable(false);
-        textArea.setWrapText(true);
-        disable(selectAllButton, prevMatchButton, nextMatchButton, submitButton);
-        GridPane.setVgrow(vsPane, Priority.ALWAYS);
-        GridPane.setHgrow(vsPane, Priority.ALWAYS);
-        textArea.setPadding(new Insets(8));
-        textArea.getStyleClass().add("text-area");
-        gridPane.add(vsPane, 1, 3);
+        submitButton.setDisable(true);
+        contextMenu.setAutoHide(true);
 
         PauseTransition pause = new PauseTransition(Duration.millis(100));
         textField.textProperty().addListener((observable, oldValue, newValue) -> {
@@ -93,7 +73,10 @@ public class Controller {
                 }
                 submitButton.setDisable(false);
                 pattern = Pattern.compile(Pattern.quote(newValue));
-                highlight(textArea, pattern);
+                FileTab tab = ((FileTab)tabPane.getSelectionModel().getSelectedItem());
+                if (tab != null) {
+                    tab.highlight(pattern);
+                }
             });
             pause.playFromStart();
         });
@@ -106,12 +89,31 @@ public class Controller {
             }
         });
 
-        textArea.textProperty().addListener((observable, oldValue, newValue) -> {
-            if (textArea.getLength() == 0) {
-                disable(selectAllButton, prevMatchButton, nextMatchButton);
+        treeView.setOnMousePressed(event -> {
+            if (event.isSecondaryButtonDown()) {
+                contextMenu.show(treeView, event.getScreenX(), event.getScreenY());
+            } else {
+                if (contextMenu.isShowing()) {
+                    contextMenu.hide();
+                }
+            }
+        });
+
+        menuItem.setOnAction(e -> {
+            if (treeView.getSelectionModel().getSelectedItem() == null) {
                 return;
             }
-            enable(selectAllButton, prevMatchButton, nextMatchButton);
+            TreeItem<String> item = treeView.getSelectionModel().getSelectedItem();
+            if (!item.isLeaf()) {
+                return;
+            }
+            addFileToNewTab(folderField.getText() + pathFor(item));
+        });
+
+        gridPane.setOnMouseClicked(e -> {
+            if (contextMenu.isShowing()) {
+                contextMenu.hide();
+            }
         });
     }
 
@@ -130,9 +132,26 @@ public class Controller {
         try {
             // Escape special regex characters
             pattern = Pattern.compile(Pattern.quote(textField.getText()));
-            addFileToTextArea(folderField.getText() + pathFor(item), textArea);
-            highlight(textArea, pattern);
+            FileTab tab = ((FileTab)tabPane.getSelectionModel().getSelectedItem());
+            if (tab == null) {
+                tab = new FileTab(item.getValue());
+                tabPane.getTabs().add(tab);
+            }
+            tab.setText(item.getValue());
+            tab.addFile(folderField.getText() + pathFor(item));
+            tab.highlight(pattern);
         } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void addFileToNewTab(String path) {
+        try {
+            FileTab tab = new FileTab(path.substring(path.lastIndexOf(File.separator) + 1));
+            tab.addFile(path);
+            tabPane.getTabs().add(tab);
+            tab.highlight(pattern);
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -147,94 +166,16 @@ public class Controller {
     }
 
     @FXML
-    protected void selectAll() {
-        Window owner = textField.getScene().getWindow();
-        if (textArea.getLength() == 0) {
-            AlertHelper.showAlert(Alert.AlertType.ERROR, owner, "Ошибка!",
-                    "Выберите файл!");
-            return;
-        }
-        textArea.selectRange(0, textArea.getLength());
-    }
-
-    @FXML
-    protected void nextMatch() { getMatch(Direction.NEXT); }
-
-    @FXML
-    protected void previousMatch() { getMatch(Direction.PREV); }
-
-    private void getMatch(Direction direction) {
-        Pair<Integer, Integer> selectionBounds = getSelectionBounds(matches, direction, textArea.getCaretPosition());
-        int caretPosition = direction == Direction.NEXT ? -1 : textArea.getLength() + 1;
-        if (selectionBounds.isEqual()) {
-            selectionBounds = getSelectionBounds(matches, direction, caretPosition);
-        }
-        textArea.selectRange(selectionBounds.getStart(), selectionBounds.getEnd());
-        textArea.requestFollowCaret();
-    }
-
-    @FXML
     protected void submit() {
         if (!extensionField.getText().isEmpty()) {
             extension = extensionField.getText();
         }
         treeView.setRoot(null);
-        textArea.clear();
+        // Clear or not clear tabs implement here
         pattern = Pattern.compile(Pattern.quote(textField.getText()));
         computeSearchingIn(folderField.getText(), extension, textField.getText());
     }
 
-    private void disable(Button... buttons) {
-        for (Button button : buttons) {
-            button.setDisable(true);
-        }
-    }
-
-    private void enable(Button... buttons) {
-        for (Button button : buttons) {
-            button.setDisable(false);
-        }
-    }
-
-    private void addFileToTextArea(String path, StyleClassedTextArea textArea) throws IOException {
-        textArea.clear();
-        try (FileReader fileReader = new FileReader(path);
-             BufferedReader reader = new BufferedReader(fileReader)) {
-            char[] buf = new char[4096];
-            StringBuilder sb = new StringBuilder();
-            while ((reader.read(buf)) != -1) {
-                sb.append(buf);
-            }
-            textArea.appendText(sb.toString());
-        }
-    }
-
-    private void highlight(StyleClassedTextArea textArea, Pattern pattern) {
-        Highlighter highlighter = new Highlighter(textArea.getText(), pattern);
-        highlighter.setOnSucceeded(event -> {
-            HighlighterResult highlighterResult = highlighter.getValue();
-            textArea.setStyleSpans(0, highlighterResult.getStyleSpans());
-            textArea.selectRange(highlighterResult.getSelectionBounds().getStart(), highlighterResult.getSelectionBounds().getEnd());
-            textArea.requestFollowCaret();
-            if (highlighterResult.getCount() == 0) {
-                textArea.moveTo(0);
-            }
-            matches = highlighterResult.getMatches();
-        });
-        executor.execute(highlighter);
-    }
-
-    private Pair<Integer, Integer> getSelectionBounds(LinkedList<Pair<Integer, Integer>> matches, Direction direction, int caretPos) {
-        Iterator<Pair<Integer,Integer>> iterator = direction.equals(Direction.NEXT) ?  matches.iterator() : matches.descendingIterator();
-        BiPredicate<Pair<Integer, Integer>, Integer> predicate = direction.equals(Direction.NEXT)
-                                                                 ? (range, position) -> range.getEnd() > position
-                                                                 : (range, position) -> range.getEnd() < position;
-        while (iterator.hasNext()) {
-            Pair<Integer, Integer> matchRange = iterator.next();
-            if (predicate.test(matchRange, caretPos)) { return matchRange; }
-        }
-        return new Pair<>(0, 0);
-    }
 
     // Find and highlight all matches
     private void computeSearchingIn(String path, String extension, String text) {
